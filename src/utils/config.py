@@ -127,11 +127,12 @@ def build_llamaindex_llm(
     except Exception:
         return config, None
 
+    # Force deterministic extraction to avoid JSON hallucination.
     llm = OpenAILike(
         model=config.model,
         api_key=config.api_key,
         api_base=config.base_url,
-        temperature=temperature,
+        temperature=0.0,
         is_chat_model=True,
     )
     return config, llm

@@ -16,6 +16,7 @@ class EnumCandidate:
     field_hint: Optional[str] = None
     debug_reason: Optional[str] = None
     title_path: Optional[list[str]] = None
+    parent_title: Optional[str] = None
     context_chunk: Optional[str] = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -114,24 +115,27 @@ class EnumDetector:
         "字段",
         "说明",
     )
+    _space_table_row_re = re.compile(r"^\s*\S.+\s{3,}\S.+$")
+    _title_table_hint_words = ("列表", "对照表", "定义", "枚举", "字段")
 
     def detect(self, markdown_text: str) -> list[dict[str, Any]]:
         if not markdown_text.strip():
             return []
 
         lines = markdown_text.splitlines()
-        title_indexer = TitleIndexer()
-        title_nodes = title_indexer.build(markdown_text)
+        self._title_indexer = TitleIndexer()
+        self._title_nodes = self._title_indexer.build(markdown_text)
         candidates: list[EnumCandidate] = []
 
         candidates.extend(self._detect_kv_blocks(lines))
         candidates.extend(self._detect_table_blocks(lines))
+        candidates.extend(self._detect_space_table_blocks(lines))
         candidates.extend(self._detect_list_blocks(lines))
         candidates.extend(self._detect_sentence_enums(lines))
 
         merged = self._deduplicate(candidates)
         merged.sort(key=lambda x: (x.start_line, x.end_line))
-        self._attach_title_context(merged, title_nodes)
+        self._attach_title_context(merged, self._title_nodes)
         return [item.to_dict() for item in merged]
 
     def _detect_kv_blocks(self, lines: list[str]) -> list[EnumCandidate]:
@@ -273,6 +277,69 @@ class EnumDetector:
                     end_line=i,
                     field_hint=field_hint,
                     debug_reason="table_2col_markdown",
+                )
+            )
+        return results
+
+    def _detect_space_table_blocks(self, lines: list[str]) -> list[EnumCandidate]:
+        """
+        Detect pseudo table rows split by large spaces:
+        Key<3+spaces>Value
+        """
+        results: list[EnumCandidate] = []
+        i = 0
+        in_code = False
+        while i < len(lines):
+            line = lines[i]
+            if self._code_fence_re.match(line):
+                in_code = not in_code
+                i += 1
+                continue
+            if in_code:
+                i += 1
+                continue
+            if not self._space_table_row_re.match(line) or "|" in line:
+                i += 1
+                continue
+
+            start = i
+            block: list[str] = []
+            while i < len(lines):
+                cur = lines[i]
+                if not cur.strip():
+                    break
+                if "|" in cur:
+                    break
+                if self._space_table_row_re.match(cur):
+                    block.append(cur.rstrip())
+                    i += 1
+                    continue
+                break
+
+            title_hint = self._has_tableish_title(start + 1)
+            min_rows = 2 if title_hint else 3
+            if len(block) < min_rows:
+                i += 1
+                continue
+
+            md_rows = self._space_rows_to_markdown(block)
+            if len(md_rows) < min_rows:
+                i += 1
+                continue
+            md_block = self._markdown_table_from_pairs(md_rows)
+            if not md_block:
+                i += 1
+                continue
+
+            field_hint = self._guess_field_hint(lines, start)
+            results.append(
+                EnumCandidate(
+                    candidate_type="table_enum_space",
+                    chunk=md_block,
+                    start_line=start + 1,
+                    end_line=i,
+                    field_hint=field_hint,
+                    debug_reason="space_table_detected",
                 )
             )
         return results
@@ -439,6 +506,31 @@ class EnumDetector:
                 filtered_pairs.append((key, value))
         return filtered_pairs
 
+    def _space_rows_to_markdown(self, rows: list[str]) -> list[tuple[str, str]]:
+        pairs: list[tuple[str, str]] = []
+        for row in rows:
+            parts = re.split(r"\s{3,}", row.strip(), maxsplit=1)
+            if len(parts) != 2:
+                continue
+            left, right = parts[0].strip(), parts[1].strip()
+            if not left or not right:
+                continue
+            if len(left) > 40 or len(right) > 120:
+                continue
+            pairs.append((left, right))
+        return pairs
+
+    def _markdown_table_from_pairs(self, pairs: list[tuple[str, str]]) -> str:
+        if len(pairs) < 2:
+            return ""
+        lines = [
+            "| key | value |",
+            "| --- | --- |",
+        ]
+        for left, right in pairs:
+            lines.append(f"| {left} | {right} |")
+        return "\n".join(lines)
+
     def _extract_kv_segments(
         self, block: list[str], default_field: Optional[str]
     ) -> list[tuple[list[str], Optional[str]]]:
@@ -595,11 +687,19 @@ class EnumDetector:
             path_nodes = indexer.get_title_path_for_line(title_nodes, item.start_line)
             path = [f"H{n.level}:{n.title}" for n in path_nodes]
             item.title_path = path
+            item.parent_title = path[-1] if path else None
             if path:
                 heading_context = "\n".join([f"{'#' * n.level} {n.title}" for n in path_nodes])
                 item.context_chunk = f"{heading_context}\n\n{item.chunk}"
             else:
                 item.context_chunk = item.chunk
+
+    def _has_tableish_title(self, line_index: int) -> bool:
+        if not hasattr(self, "_title_indexer") or not hasattr(self, "_title_nodes"):
+            return False
+        path = self._title_indexer.get_title_path_for_line(self._title_nodes, line_index)
+        text = " ".join(n.title for n in path)
+        return any(word in text for word in self._title_table_hint_words)
 
 
 def detect_enum_candidates(markdown_text: str) -> list[dict[str, Any]]:

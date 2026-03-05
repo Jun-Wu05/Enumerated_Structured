@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
+import re
 from typing import Any, Optional
 
 try:
@@ -90,6 +91,11 @@ class EnumExtractionWorkflow(Workflow):
     @step
     async def detect_step(self, ctx: Context, ev: CleanedEvent) -> DetectedEvent:
         candidates = self.detector.detect(ev.cleaned_text)
+        candidates = self._apply_overlap_context(
+            candidates=candidates,
+            cleaned_text=ev.cleaned_text,
+            overlap_tokens=200,
+        )
         self._write_structure_log(ev.input_path, ev.cleaned_text, candidates)
         return DetectedEvent(
             input_path=ev.input_path,
@@ -146,11 +152,79 @@ class EnumExtractionWorkflow(Workflow):
                 f"[{i}] type={cand.get('candidate_type')} "
                 f"line={cand.get('start_line')}-{cand.get('end_line')} "
                 f"field={cand.get('field_hint')} "
-                f"title={' > '.join(title_path) if title_path else '(none)'}"
+                f"title={' > '.join(title_path) if title_path else '(none)'} "
+                f"parent={cand.get('parent_title') or '(none)'}"
             )
             preview = str(cand.get("chunk", "")).replace("\n", " | ")
             lines.append(f"    chunk: {preview[:260]}")
         output_path.write_text("\n".join(lines), encoding="utf-8")
+
+    def _apply_overlap_context(
+        self, candidates: list[dict[str, Any]], cleaned_text: str, overlap_tokens: int
+    ) -> list[dict[str, Any]]:
+        if not candidates or not cleaned_text.strip():
+            return candidates
+
+        tokens = list(re.finditer(r"\S+", cleaned_text))
+        if not tokens:
+            return candidates
+
+        line_start_offsets = self._line_start_offsets(cleaned_text)
+        for cand in candidates:
+            start_line = int(cand.get("start_line") or 1)
+            end_line = int(cand.get("end_line") or start_line)
+            start_line = max(1, min(start_line, len(line_start_offsets)))
+            end_line = max(start_line, min(end_line, len(line_start_offsets)))
+            start_char = line_start_offsets[start_line - 1]
+            end_char = (
+                line_start_offsets[end_line] - 1
+                if end_line < len(line_start_offsets)
+                else len(cleaned_text)
+            )
+            center_idx = self._find_first_token_idx(tokens, start_char)
+            tail_idx = self._find_last_token_idx(tokens, end_char)
+            if center_idx is None:
+                continue
+            if tail_idx is None or tail_idx < center_idx:
+                tail_idx = center_idx
+            left = max(0, center_idx - overlap_tokens)
+            right = min(len(tokens) - 1, tail_idx + overlap_tokens)
+            overlap_chunk = cleaned_text[tokens[left].start() : tokens[right].end()]
+
+            title_path = cand.get("title_path") or []
+            heading_context = ""
+            if title_path:
+                heading_context = "\n".join(
+                    [
+                        f"{'#' * int(part.split(':', 1)[0].replace('H', ''))} {part.split(':', 1)[1]}"
+                        for part in title_path
+                        if ":" in part and part.startswith("H")
+                    ]
+                )
+            if heading_context:
+                cand["context_chunk"] = f"{heading_context}\n\n{overlap_chunk}"
+            else:
+                cand["context_chunk"] = overlap_chunk
+            cand["overlap_tokens"] = overlap_tokens
+        return candidates
+
+    def _line_start_offsets(self, text: str) -> list[int]:
+        offsets = [0]
+        for m in re.finditer(r"\n", text):
+            offsets.append(m.end())
+        return offsets
+
+    def _find_first_token_idx(self, tokens: list[re.Match], char_pos: int) -> Optional[int]:
+        for i, tk in enumerate(tokens):
+            if tk.end() >= char_pos:
+                return i
+        return None
+
+    def _find_last_token_idx(self, tokens: list[re.Match], char_pos: int) -> Optional[int]:
+        for i in range(len(tokens) - 1, -1, -1):
+            if tokens[i].start() <= char_pos:
+                return i
+        return None
 
 
 def run_enum_workflow(input_path: str | Path) -> dict[str, Any]:
