@@ -1,0 +1,77 @@
+{
+  "input": "data/word_long.pdf",
+  "raw_length": 83093,
+  "cleaned_length": 66831,
+  "candidate_count": 14,
+  "extracted_count": 14,
+  "validated_count": 6,
+  "enums": [
+    {
+      "field": "params",
+      "log_field": "params",
+      "type": "enum",
+      "mapping": {
+        "1": "有风险",
+        "2": "已处理",
+        "3": "高危事件",
+        "4": "严重事件",
+        "7": "统计 7 天内的数据",
+        "30": "统计 30 天内的数据",
+        "180": "统计 180 天内的数据"
+      }
+    },
+    {
+      "field": "path",
+      "log_field": "path",
+      "type": "enum",
+      "mapping": {
+        "1": "有风险",
+        "2": "已处理",
+        "3": "已忽略",
+        "4": "严重事件"
+      }
+    },
+    {
+      "field": "count",
+      "log_field": "count",
+      "type": "enum",
+      "mapping": {
+        "1": "有风险",
+        "2": "已处理",
+        "3": "已忽略 暴力破解",
+        "4": "严重事件"
+      }
+    },
+    {
+      "field": "events",
+      "log_field": "events",
+      "type": "enum",
+      "mapping": {
+        "1": "有风险",
+        "2": "已处理",
+        "3": "已忽略 蜜罐诱捕",
+        "4": "严重事件"
+      }
+    },
+    {
+      "field": "host_os_type",
+      "log_field": "host_os_type",
+      "type": "enum",
+      "mapping": {
+        "1": "有风险",
+        "2": "已处理",
+        "3": "已忽略 本地提权",
+        "4": "严重事件"
+      }
+    },
+    {
+      "field": "state",
+      "log_field": "state",
+      "type": "enum",
+      "mapping": {
+        "2": "已处理",
+        "3": "已忽略 异常登录"
+      }
+    }
+  ]
+}

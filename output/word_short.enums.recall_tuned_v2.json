@@ -1,0 +1,9 @@
+{
+  "input": "data/word_short.pdf",
+  "raw_length": 11898,
+  "cleaned_length": 10985,
+  "candidate_count": 1,
+  "extracted_count": 0,
+  "validated_count": 0,
+  "enums": []
+}

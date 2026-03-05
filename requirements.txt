@@ -7,3 +7,4 @@ tqdm>=4.66.0
 python-dotenv>=1.0.0
 llama-index>=0.10.0
 llama-index-readers-file>=0.1.0
+llama-index-llms-openai-like>=0.1.0

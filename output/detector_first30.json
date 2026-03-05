@@ -1,0 +1,212 @@
+[
+  {
+    "candidate_type": "kv_enum",
+    "chunk": "Body： JSON 格式，其中包含 4 个字段\nid： 必选，字符串，例  63845f41-b556-995a-c6e5\njsonrpc： 必选，字符串，永远是  \"2.0\"\nmethod： 请求方法，必选，字符串，参考不同功能的 API 文档\nparams： 请求参数，可选，字典，参考不同功能的 API 文档 Python3 示范调用 封装一个简单的 API 类 将以下代码保存为  API.py  文件 注意，以下代码需要依赖第三方库  requests  ,  cryptography import requests import json from urllib.parse import urljoin import base64 from cryptography.hazmat.primitives import serialization from cryptography.hazmat.primitives.asymmetric import padding from cryptography.hazmat.primitives import hashes class API(object):",
+    "start_line": 5,
+    "end_line": 10,
+    "field_hint": "Content-Type"
+  },
+  {
+    "candidate_type": "kv_enum",
+    "chunk": "data：事件列表，其中每个事件都是一个字典，字段如下\ncreated_at：事件发现事件\ndisplay_name：事件类型名称\nhost_view：事件对应的主机信息\ngroup_name：业务组名称\nhost_comment：主机备注\nhost_id：主机 ID\nhost_ip：主机 IP\nhost_name：主机名\nhost_os_name：主机操作系统名称\nhost_os_type：主机操作系统类型\nhost_state：主机状态\nid：事件 ID\nlevel：事件风险级别\n1：代表低危事件\n2：代表中危事件\n3：代表高危事件\n4：代表严重事件\nstate：事件状态\n1：代表有风险\n2：代表已处理\n3：代表已忽略\ntype：事件类型 统计各类事件的数量\nmethod：  ThreatOverviewService.ListEventTypeDistInfo",
+    "start_line": 56,
+    "end_line": 80,
+    "field_hint": "params"
+  },
+  {
+    "candidate_type": "kv_enum",
+    "chunk": "7：统计 7 天内的数据\n30：统计 30 天内的数据\n180：统计 180 天内的数据\nlevel：可选，列表，代表需要筛选的事件等级，有 4 种选项\n1：代表低危事件\n2：代表中危事件\n3：代表高危事件\n4：代表严重事件\ngids：可选，列表，其中每一项都是一个数字，表示业务组 ID，可根据业务组进行筛选\ndata：内容列表，其中每一类事件都是一个字典，字段如下\ncount：事件数量 05  / 111",
+    "start_line": 82,
+    "end_line": 93,
+    "field_hint": "params"
+  },
+  {
+    "candidate_type": "kv_enum",
+    "chunk": "type：事件类型 统计事件状态与风险等级\nmethod：  ThreatOverviewService.GetProcessedEventInfo",
+    "start_line": 95,
+    "end_line": 97,
+    "field_hint": "count"
+  },
+  {
+    "candidate_type": "kv_enum",
+    "chunk": "7：统计 7 天内的数据\n30：统计 30 天内的数据\n180：统计 180 天内的数据\nlevel：可选，列表，代表需要筛选的事件等级，有 4 种选项\n1：代表低危事件\n2：代表中危事件\n3：代表高危事件\n4：代表严重事件\ngids：可选，列表，其中每一项都是一个数字，表示业务组 ID，可根据业务组进行筛选\ndata：内容列表，其中每种状态的事件都是一个字典，字段如下\ncritical：严重事件数量\nhigh：高危事件数量\nmedium：中危事件数量\nlow：低危事件数量\nstate：事件状态\nrisky：有风险\nignore：已忽略\nprocessed：已处理 WebShell\nmethod：  WebshellEventService.GetEventList",
+    "start_line": 99,
+    "end_line": 118,
+    "field_hint": "params"
+  },
+  {
+    "candidate_type": "kv_enum",
+    "chunk": "offset：必选，数字，代表从第几条事件开始拉取\ngids：可选，列表，其中每一项都是一个数字，表示业务组 ID，可根据业务组进行筛选\nstate：可选，列表，其中每一项都是一个数字，表示事件状态，可根据事件状态进行筛选\n1：代表有风险\n2：代表已处理\n3：代表已忽略\npath：可选，列表，其中每项都是一个字符串，可根据文件路径进行筛选 06  / 111",
+    "start_line": 120,
+    "end_line": 127,
+    "field_hint": "params"
+  },
+  {
+    "candidate_type": "kv_enum",
+    "chunk": "created_at：事件发现事件\nhost_view：事件对应的主机信息\ngroup_name：业务组名称\nhost_comment：主机备注\nhost_id：主机 ID\nhost_ip：主机 IP\nhost_name：主机名\nhost_os_name：主机操作系统名称\nhost_os_type：主机操作系统类型\nhost_state：主机状态\nid：事件 ID\nlevel：事件风险级别\n1：代表低危事件\n2：代表中危事件\n3：代表高危事件\n4：代表严重事件\nstate：事件状态\n1：代表有风险\n2：代表已处理\n3：代表已忽略\npath：文件路径 获取事件详情\nmethod：  WebshellEventService.GetEvent",
+    "start_line": 129,
+    "end_line": 151,
+    "field_hint": "path"
+  },
+  {
+    "candidate_type": "kv_enum",
+    "chunk": "container_hash_id：事件影响的容器 ID，若不在容器内，此项为空\ncreated_at：事件发现时间\ndescription：事件说明\ndetect_reason：检测依据\nfile_size：文件大小\nfile_type：文件类型\ngroup_id：文件所属用户组 ID\ngroup_name：文件所属用户组名称\nmd5：文件 MD5\npath：文件路径\npermission：文件权限\nsha256：文件 sha256\nsolution：解决方案\nwebshell_type：WebShell 类型 反弹 Shell 07  / 111",
+    "start_line": 153,
+    "end_line": 167,
+    "field_hint": "params"
+  },
+  {
+    "candidate_type": "kv_enum",
+    "chunk": "offset：必选，数字，代表从第几条事件开始拉取\ngids：可选，列表，其中每一项都是一个数字，表示业务组 ID，可根据业务组进行筛选\nstate：可选，列表，其中每一项都是一个数字，表示事件状态，可根据事件状态进行筛选\n1：代表有风险\n2：代表已处理\n3：代表已忽略\nremote_addr：可选，列表，其中每项都是一个字符串，可根据反弹的远程 IP 进行筛选\nevents：事件列表，其中每一个事件都是一个字典，字段如下：\ncreated_at：事件发现事件\nhost_view：事件对应的主机信息\ngroup_name：业务组名称\nhost_comment：主机备注\nhost_id：主机 ID\nhost_ip：主机 IP\nhost_name：主机名\nhost_os_name：主机操作系统名称\nhost_os_type：主机操作系统类型\nhost_state：主机状态\nid：事件 ID\nlevel：事件风险级别\n1：代表低危事件\n2：代表中危事件\n3：代表高危事件\n4：代表严重事件\nstate：事件状态\n1：代表有风险\n2：代表已处理\n3：代表已忽略\nremote_addr：反弹的远程 IP\nremote_port：反弹的远程端口 恶意文件\nmethod：  MalwareEventService.GetEventList",
+    "start_line": 171,
+    "end_line": 202,
+    "field_hint": "params"
+  },
+  {
+    "candidate_type": "kv_enum",
+    "chunk": "gids：可选，列表，其中每一项都是一个数字，表示业务组 ID，可根据业务组进行筛选\nstate：可选，列表，其中每一项都是一个数字，表示事件状态，可根据事件状态进行筛选\n1：代表有风险\n2：代表已处理\n3：代表已忽略\nevents：事件列表，其中每一个事件都是一个字典，字段如下：\ncreated_at：事件发现事件\nhost_view：事件对应的主机信息\ngroup_name：业务组名称\nhost_comment：主机备注\nhost_id：主机 ID\nhost_ip：主机 IP\nhost_name：主机名\nhost_os_name：主机操作系统名称\nhost_os_type：主机操作系统类型\nhost_state：主机状态\nid：事件 ID\nlevel：事件风险级别\n1：代表低危事件\n2：代表中危事件\n3：代表高危事件\n4：代表严重事件\nstate：事件状态\n1：代表有风险\n2：代表已处理\n3：代表已忽略 暴力破解\nmethod：  BruteForceService.GetEventList",
+    "start_line": 206,
+    "end_line": 233,
+    "field_hint": "count"
+  },
+  {
+    "candidate_type": "kv_enum",
+    "chunk": "offset：必选，数字，代表从第几条事件开始拉取\ngids：可选，列表，其中每一项都是一个数字，表示业务组 ID，可根据业务组进行筛选\nstate：可选，列表，其中每一项都是一个数字，表示事件状态，可根据事件状态进行筛选\n1：代表有风险\n2：代表已处理\n3：代表已忽略\nevents：事件列表，其中每一个事件都是一个字典，字段如下：",
+    "start_line": 235,
+    "end_line": 242,
+    "field_hint": "params"
+  },
+  {
+    "candidate_type": "kv_enum",
+    "chunk": "host_view：事件对应的主机信息\ngroup_name：业务组名称\nhost_comment：主机备注\nhost_id：主机 ID\nhost_ip：主机 IP\nhost_name：主机名\nhost_os_name：主机操作系统名称\nhost_os_type：主机操作系统类型\nhost_state：主机状态\nid：事件 ID\nlevel：事件风险级别\n1：代表低危事件\n2：代表中危事件\n3：代表高危事件\n4：代表严重事件\nstate：事件状态\n1：代表有风险\n2：代表已处理\n3：代表已忽略 蜜罐诱捕\nmethod：  HoneypotService.GetEventList",
+    "start_line": 245,
+    "end_line": 265,
+    "field_hint": "events"
+  },
+  {
+    "candidate_type": "kv_enum",
+    "chunk": "offset：必选，数字，代表从第几条事件开始拉取\ngids：可选，列表，其中每一项都是一个数字，表示业务组 ID，可根据业务组进行筛选\nstate：可选，列表，其中每一项都是一个数字，表示事件状态，可根据事件状态进行筛选\n1：代表有风险\n2：代表已处理\n3：代表已忽略\nevents：事件列表，其中每一个事件都是一个字典，字段如下：\ncreated_at：事件发现事件\nhost_view：事件对应的主机信息\ngroup_name：业务组名称\nhost_comment：主机备注\nhost_id：主机 ID\nhost_ip：主机 IP\nhost_name：主机名\nhost_os_name：主机操作系统名称\nhost_os_type：主机操作系统类型 10  / 111",
+    "start_line": 267,
+    "end_line": 283,
+    "field_hint": "params"
+  },
+  {
+    "candidate_type": "kv_enum",
+    "chunk": "id：事件 ID\nlevel：事件风险级别\n1：代表低危事件\n2：代表中危事件\n3：代表高危事件\n4：代表严重事件\nstate：事件状态\n1：代表有风险\n2：代表已处理\n3：代表已忽略 本地提权\nmethod：  ElevationProcessEventService.GetEventList",
+    "start_line": 285,
+    "end_line": 296,
+    "field_hint": "host_os_type"
+  },
+  {
+    "candidate_type": "kv_enum",
+    "chunk": "offset：必选，数字，代表从第几条事件开始拉取\ngids：可选，列表，其中每一项都是一个数字，表示业务组 ID，可根据业务组进行筛选\nstate：可选，列表，其中每一项都是一个数字，表示事件状态，可根据事件状态进行筛选\n1：代表有风险\n2：代表已处理\n3：代表已忽略\nevents：事件列表，其中每一个事件都是一个字典，字段如下：\ncreated_at：事件发现事件\nhost_view：事件对应的主机信息\ngroup_name：业务组名称\nhost_comment：主机备注\nhost_id：主机 ID\nhost_ip：主机 IP\nhost_name：主机名\nhost_os_name：主机操作系统名称\nhost_os_type：主机操作系统类型\nhost_state：主机状态\nid：事件 ID\nlevel：事件风险级别\n1：代表低危事件\n2：代表中危事件\n3：代表高危事件\n4：代表严重事件\nstate：事件状态\n1：代表有风险 11  / 111",
+    "start_line": 298,
+    "end_line": 323,
+    "field_hint": "params"
+  },
+  {
+    "candidate_type": "kv_enum",
+    "chunk": "2：代表已处理\n3：代表已忽略 异常登录\nmethod：  AbnormalLoginEventService.GetEventList",
+    "start_line": 325,
+    "end_line": 327,
+    "field_hint": "state"
+  },
+  {
+    "candidate_type": "kv_enum",
+    "chunk": "offset：必选，数字，代表从第几条事件开始拉取\ngids：可选，列表，其中每一项都是一个数字，表示业务组 ID，可根据业务组进行筛选\nstate：可选，列表，其中每一项都是一个数字，表示事件状态，可根据事件状态进行筛选\n1：代表有风险\n2：代表已处理\n3：代表已忽略\nevents：事件列表，其中每一个事件都是一个字典，字段如下：\ncreated_at：事件发现事件\nhost_view：事件对应的主机信息\ngroup_name：业务组名称\nhost_comment：主机备注\nhost_id：主机 ID\nhost_ip：主机 IP\nhost_name：主机名\nhost_os_name：主机操作系统名称\nhost_os_type：主机操作系统类型\nhost_state：主机状态\nid：事件 ID\nlevel：事件风险级别\n1：代表低危事件\n2：代表中危事件\n3：代表高危事件\n4：代表严重事件\nstate：事件状态\n1：代表有风险\n2：代表已处理\n3：代表已忽略 文档下载 文档下载 牧云提供多种文档形式，请按需使用:",
+    "start_line": 329,
+    "end_line": 356,
+    "field_hint": "params"
+  },
+  {
+    "candidate_type": "inline_enum",
+    "chunk": "44: 47 vuln_modify_date string 漏洞修改日期 2020-05-25 06\n44: 47 vuln_cnnvd string 漏洞CNNVD编号 CNNVD-201709-399 vuln_type string 漏洞类型 安全特征问题 vuln_cnvd string 漏洞CNVD编号 CNVD-2017-30116 vuln_cwe string 漏洞CWE编号 CWE-119 vuln_cve string 漏洞CVE编号 CVE-2017-14287 vuln_bid string 漏洞BID编号 12 15  / 111",
+    "start_line": 370,
+    "end_line": 370,
+    "field_hint": "https"
+  },
+  {
+    "candidate_type": "inline_enum",
+    "chunk": "2020-08-24T07: 50\n06: 44\n06: 44\n2020-08-24T07: 50\n06: 44\n06: 44\n2020-08-24T07: 50\n06: 44\n06: 44",
+    "start_line": 372,
+    "end_line": 372,
+    "field_hint": null
+  },
+  {
+    "candidate_type": "inline_enum",
+    "chunk": "11: 19\n2020-08-24T07: 50\n11: 19\nhttps: //exchange.xforce.ibmcloud.com/vulnerabilities/181231\", \"event_d escription\"",
+    "start_line": 374,
+    "end_line": 374,
+    "field_hint": null
+  },
+  {
+    "candidate_type": "inline_enum",
+    "chunk": "2020-08-24T07: 50\n11: 19",
+    "start_line": 376,
+    "end_line": 376,
+    "field_hint": null
+  },
+  {
+    "candidate_type": "inline_enum",
+    "chunk": "50: 43Z cfd86f3a54ec cloudwalker 19 cloudwalker-focus-vuln [host-info  host_name=\"Bomb \" host_ip=\"10.2.6.83\" host_id=\"190\"][focus-vuln event_name=\"WebShell\" event_level=\"critical\" event_create_time =\"2022-01-11 11\n19: 26\" vuln_cvss_score=\"4.6\" vuln_cvss_access_vector=\"NETWORK\" vuln_cvss_access_com plexity=\"HIGH\" vuln_cvss_authentication=\"SINGLE\" vuln_cvss_confidentiality_impact=\"COMPLETE\" vuln_cvss_in tegrity_impact=\"COMPLETE\" vuln_cvss_availability_impact=\"COMPLETE\" vuln_type=\"安全特征问题\" vuln_cwe= \"CWE-119\" vuln_cve_list=\"[{CVE-2020-4450}]\" vuln_app=\"\" vuln_affected_versions=\"{1.2.4}\" vuln_reference=\"htt",
+    "start_line": 377,
+    "end_line": 377,
+    "field_hint": "https"
+  },
+  {
+    "candidate_type": "inline_enum",
+    "chunk": "2020-08-24T07: 50\n11: 19\n2020-08-24T07: 50\n11: 19\n2020-08-24T07: 50\n11: 19\n11: 19",
+    "start_line": 380,
+    "end_line": 380,
+    "field_hint": null
+  },
+  {
+    "candidate_type": "inline_enum",
+    "chunk": "2020-08-24T07: 50\n11: 19\n2020-08-24T07: 50\n11: 19\n2020-08-24T07: 50\n11: 19",
+    "start_line": 382,
+    "end_line": 382,
+    "field_hint": null
+  },
+  {
+    "candidate_type": "inline_enum",
+    "chunk": "11: 19\n11: 19\n11: 19\n2020-08-24T07: 50\n11: 19\n11: 19\n11: 19\n2020-08-24T07: 50\n11: 19\n11: 19\n11: 1",
+    "start_line": 384,
+    "end_line": 384,
+    "field_hint": null
+  },
+  {
+    "candidate_type": "inline_enum",
+    "chunk": "2020-08-24T07: 50\n11: 19\n11: 19\n11: 19\n11: 19\n11: 19\n11: 19\n11: 19",
+    "start_line": 387,
+    "end_line": 387,
+    "field_hint": null
+  },
+  {
+    "candidate_type": "inline_enum",
+    "chunk": "2020-08-24T07: 50\n11: 19\n11: 19\n11: 19\n11: 19\n2020-08-24T07: 50\n11: 19\n11: 19\n11: 19\n11: 19\n2020-08-24T07: 50\n11: 19\n11: 19\n11: 19\n11: 19",
+    "start_line": 389,
+    "end_line": 389,
+    "field_hint": null
+  },
+  {
+    "candidate_type": "inline_enum",
+    "chunk": "11: 19\n2020-08-24T07: 50",
+    "start_line": 391,
+    "end_line": 391,
+    "field_hint": null
+  },
+  {
+    "candidate_type": "inline_enum",
+    "chunk": "2020-08-24T07: 50\n11: 19\n2020-08-24T07: 50\n11: 19",
+    "start_line": 394,
+    "end_line": 394,
+    "field_hint": null
+  },
+  {
+    "candidate_type": "inline_enum",
+    "chunk": "11: 19\n11: 19\n11: 19\n2020-08-24T07: 50\n11: 19\n11: 19",
+    "start_line": 396,
+    "end_line": 396,
+    "field_hint": null
+  }
+]

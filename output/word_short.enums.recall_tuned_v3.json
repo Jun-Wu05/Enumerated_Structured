@@ -1,0 +1,36 @@
+{
+  "input": "data/word_short.pdf",
+  "raw_length": 11898,
+  "cleaned_length": 10985,
+  "candidate_count": 1,
+  "extracted_count": 1,
+  "validated_count": 1,
+  "enums": [
+    {
+      "field": "protocol",
+      "log_field": "protocol",
+      "type": "enum",
+      "mapping": {
+        "PC": "PC",
+        "LFF": "LFF",
+        "FTP": "FTP",
+        "HTTP": "HTTP",
+        "HTTP_HTTPS": "HTTP_HTTPS",
+        "HTTPS": "HTTPS",
+        "IM": "IM",
+        "SMTP": "SMTP",
+        "POP3": "POP3",
+        "IMAP": "IMAP",
+        "SMB": "SMB",
+        "NFS": "NFS",
+        "CIFS": "CIFS",
+        "SFTP": "SFTP",
+        "FTPS": "FTPS",
+        "TELNET": "TELNET",
+        "MYSQL": "MYSQL",
+        "PCLM": "PCLM",
+        "UNKNOWN": "UNKNOWN"
+      }
+    }
+  ]
+}

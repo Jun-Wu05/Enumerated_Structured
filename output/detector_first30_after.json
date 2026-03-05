@@ -1,0 +1,114 @@
+[
+  {
+    "candidate_type": "kv_enum",
+    "chunk": "level：事件风险级别\n1：代表低危事件\n2：代表中危事件\n3：代表高危事件\n4：代表严重事件\nstate：事件状态\n1：代表有风险\n2：代表已处理\n3：代表已忽略\ntype：事件类型 统计各类事件的数量",
+    "start_line": 56,
+    "end_line": 80,
+    "field_hint": "params"
+  },
+  {
+    "candidate_type": "kv_enum",
+    "chunk": "7：统计 7 天内的数据\n30：统计 30 天内的数据\n180：统计 180 天内的数据\n1：代表低危事件\n2：代表中危事件\n3：代表高危事件\n4：代表严重事件",
+    "start_line": 82,
+    "end_line": 93,
+    "field_hint": "params"
+  },
+  {
+    "candidate_type": "kv_enum",
+    "chunk": "7：统计 7 天内的数据\n30：统计 30 天内的数据\n180：统计 180 天内的数据\n1：代表低危事件\n2：代表中危事件\n3：代表高危事件\n4：代表严重事件\ncritical：严重事件数量\nhigh：高危事件数量\nmedium：中危事件数量\nlow：低危事件数量\nstate：事件状态\nrisky：有风险\nignore：已忽略\nprocessed：已处理 WebShell",
+    "start_line": 99,
+    "end_line": 118,
+    "field_hint": "params"
+  },
+  {
+    "candidate_type": "kv_enum",
+    "chunk": "1：代表有风险\n2：代表已处理\n3：代表已忽略",
+    "start_line": 120,
+    "end_line": 127,
+    "field_hint": "params"
+  },
+  {
+    "candidate_type": "kv_enum",
+    "chunk": "level：事件风险级别\n1：代表低危事件\n2：代表中危事件\n3：代表高危事件\n4：代表严重事件\nstate：事件状态\n1：代表有风险\n2：代表已处理\n3：代表已忽略",
+    "start_line": 129,
+    "end_line": 151,
+    "field_hint": "path"
+  },
+  {
+    "candidate_type": "kv_enum",
+    "chunk": "md5：文件 MD5\npermission：文件权限\nsha256：文件 sha256",
+    "start_line": 153,
+    "end_line": 167,
+    "field_hint": "params"
+  },
+  {
+    "candidate_type": "kv_enum",
+    "chunk": "1：代表有风险\n2：代表已处理\n3：代表已忽略\nlevel：事件风险级别\n1：代表低危事件\n2：代表中危事件\n3：代表高危事件\n4：代表严重事件\nstate：事件状态\n1：代表有风险\n2：代表已处理\n3：代表已忽略",
+    "start_line": 171,
+    "end_line": 202,
+    "field_hint": "params"
+  },
+  {
+    "candidate_type": "kv_enum",
+    "chunk": "1：代表有风险\n2：代表已处理\n3：代表已忽略\nlevel：事件风险级别\n1：代表低危事件\n2：代表中危事件\n3：代表高危事件\n4：代表严重事件\nstate：事件状态\n1：代表有风险\n2：代表已处理\n3：代表已忽略 暴力破解",
+    "start_line": 206,
+    "end_line": 233,
+    "field_hint": "count"
+  },
+  {
+    "candidate_type": "kv_enum",
+    "chunk": "1：代表有风险\n2：代表已处理\n3：代表已忽略",
+    "start_line": 235,
+    "end_line": 242,
+    "field_hint": "params"
+  },
+  {
+    "candidate_type": "kv_enum",
+    "chunk": "level：事件风险级别\n1：代表低危事件\n2：代表中危事件\n3：代表高危事件\n4：代表严重事件\nstate：事件状态\n1：代表有风险\n2：代表已处理\n3：代表已忽略 蜜罐诱捕",
+    "start_line": 245,
+    "end_line": 265,
+    "field_hint": "events"
+  },
+  {
+    "candidate_type": "kv_enum",
+    "chunk": "1：代表有风险\n2：代表已处理\n3：代表已忽略",
+    "start_line": 267,
+    "end_line": 283,
+    "field_hint": "params"
+  },
+  {
+    "candidate_type": "kv_enum",
+    "chunk": "level：事件风险级别\n1：代表低危事件\n2：代表中危事件\n3：代表高危事件\n4：代表严重事件\nstate：事件状态\n1：代表有风险\n2：代表已处理\n3：代表已忽略 本地提权",
+    "start_line": 285,
+    "end_line": 296,
+    "field_hint": "host_os_type"
+  },
+  {
+    "candidate_type": "kv_enum",
+    "chunk": "1：代表有风险\n2：代表已处理\n3：代表已忽略\nlevel：事件风险级别\n1：代表低危事件\n2：代表中危事件\n3：代表高危事件\n4：代表严重事件\nstate：事件状态\n1：代表有风险 11  / 111",
+    "start_line": 298,
+    "end_line": 323,
+    "field_hint": "params"
+  },
+  {
+    "candidate_type": "kv_enum",
+    "chunk": "2：代表已处理\n3：代表已忽略 异常登录",
+    "start_line": 325,
+    "end_line": 327,
+    "field_hint": "state"
+  },
+  {
+    "candidate_type": "kv_enum",
+    "chunk": "1：代表有风险\n2：代表已处理\n3：代表已忽略\nlevel：事件风险级别\n1：代表低危事件\n2：代表中危事件\n3：代表高危事件\n4：代表严重事件\nstate：事件状态\n1：代表有风险\n2：代表已处理",
+    "start_line": 329,
+    "end_line": 356,
+    "field_hint": "params"
+  },
+  {
+    "candidate_type": "table_enum",
+    "chunk": "假设执行这条命令的 Bash 的  stdin  和  stdout  都是  pts/0 。外层  | （倒数第二个字符）产生的匿名管道为\npipe1 ，内层  | （cURL 和 sh 之间的管道）产生的匿名管道为  pipe2 。\n可标注出外层  |  前后命令的 fd 如下图所示。",
+    "start_line": 665,
+    "end_line": 667,
+    "field_hint": null
+  }
+]

@@ -1,0 +1,8 @@
+level：事件风险级别
+1：低危
+2：中危
+3：高危
+
+state：事件状态
+risky：有风险
+processed：已处理
