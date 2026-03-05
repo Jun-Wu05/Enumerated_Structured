@@ -4,7 +4,6 @@ import os
 import re
 from typing import Any, Optional
 
-from src.prompts.enum_prompt import SYSTEM_PROMPT, build_user_prompt
 from src.utils.config import build_llamaindex_llm
 from src.utils.json_utils import parse_json_from_text
 
@@ -40,6 +39,7 @@ class LLMExtractor:
         else:
             self.enable_rule_fallback = enable_rule_fallback
         self._usage = self._init_usage()
+        self._metrics = self._init_metrics()
 
     def _init_usage(self) -> dict[str, int]:
         return {
@@ -49,11 +49,26 @@ class LLMExtractor:
             "llm_calls": 0,
         }
 
+    def _init_metrics(self) -> dict[str, Any]:
+        return {
+            "llm_enabled": self._can_call_llm(),
+            "provider": self.provider,
+            "model": self.model,
+            "candidate_total": 0,
+            "llm_success_count": 0,
+            "llm_empty_count": 0,
+            "llm_error_count": 0,
+            "fallback_used_count": 0,
+            "sample_errors": [],
+        }
+
     def extract_many(self, candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
         self._usage = self._init_usage()
+        self._metrics = self._init_metrics()
+        self._metrics["candidate_total"] = len(candidates)
         results: list[dict[str, Any]] = []
-        for candidate in candidates:
-            extracted = self.extract_one(candidate)
+        for idx, candidate in enumerate(candidates):
+            extracted = self.extract_one(candidate, idx=idx)
             if extracted:
                 results.extend(extracted)
         return results
@@ -61,13 +76,23 @@ class LLMExtractor:
     def get_usage(self) -> dict[str, int]:
         return dict(self._usage)
 
-    def extract_one(self, candidate: dict[str, Any]) -> list[dict[str, Any]]:
+    def get_metrics(self) -> dict[str, Any]:
+        return dict(self._metrics)
+
+    def extract_one(self, candidate: dict[str, Any], idx: int = -1) -> list[dict[str, Any]]:
         if self._can_call_llm():
             try:
                 llm_result = self._extract_with_llm(candidate)
                 if llm_result:
+                    self._metrics["llm_success_count"] += 1
                     return llm_result
+                self._metrics["llm_empty_count"] += 1
             except Exception:
+                self._metrics["llm_error_count"] += 1
+                if len(self._metrics["sample_errors"]) < 5:
+                    self._metrics["sample_errors"].append(
+                        {"candidate_idx": idx, "error": "llm_call_or_parse_failed"}
+                    )
                 if not self.enable_rule_fallback:
                     return []
             if not self.enable_rule_fallback:
@@ -75,14 +100,18 @@ class LLMExtractor:
         if not self.enable_rule_fallback:
             return []
         fallback = self._extract_with_rules(candidate)
-        return [fallback] if fallback else []
+        if fallback:
+            self._metrics["fallback_used_count"] += 1
+            return [fallback]
+        return []
 
     def _can_call_llm(self) -> bool:
         return self._llm is not None and bool(self.api_key)
 
     def _extract_with_llm(self, candidate: dict[str, Any]) -> list[dict[str, Any]]:
-        chunk = str(candidate.get("chunk", "")).strip()
+        chunk = str(candidate.get("context_chunk") or candidate.get("chunk", "")).strip()
         field_hint = candidate.get("field_hint")
+        title_path = candidate.get("title_path") or []
         if not chunk:
             return []
 
@@ -90,10 +119,14 @@ class LLMExtractor:
 
         resp = self._llm.chat(
             messages=[
-                ChatMessage(role=MessageRole.SYSTEM, content=SYSTEM_PROMPT),
+                ChatMessage(role=MessageRole.SYSTEM, content=self._build_system_prompt()),
                 ChatMessage(
                     role=MessageRole.USER,
-                    content=build_user_prompt(chunk, field_hint),
+                    content=self._build_user_prompt(
+                        chunk=chunk,
+                        field_hint=field_hint,
+                        title_path=title_path,
+                    ),
                 ),
             ]
         )
@@ -104,6 +137,44 @@ class LLMExtractor:
         if not normalized:
             return []
         return normalized
+
+    def _build_system_prompt(self) -> str:
+        return (
+            "你是一个用于从技术文档中抽取枚举字段（ENUM）的系统。\n"
+            "请严格按 JSON 输出，不要输出解释、Markdown 或额外文本。\n"
+            "若内容是代码示例或 JSON 样例数据，不做抽取，返回 {\"enum\": null}。\n"
+            "允许一个切片输出多个枚举字段，此时返回 JSON 数组。"
+        )
+
+    def _build_user_prompt(
+        self,
+        chunk: str,
+        field_hint: Optional[str],
+        title_path: list[str],
+    ) -> str:
+        title_ctx = " > ".join([str(x) for x in title_path if str(x).strip()]) or "(none)"
+        hint = field_hint or "(none)"
+        return (
+            "任务：从以下文档切片抽取枚举。\n\n"
+            "Metadata（用于 field 判断）:\n"
+            f"- parent_title_path: {title_ctx}\n"
+            f"- field_hint: {hint}\n\n"
+            "输出规则：\n"
+            "1) 仅输出严格 JSON。\n"
+            "2) 结果必须包含核心键: field, mapping。\n"
+            "3) 单枚举输出对象；多枚举输出数组。\n"
+            "4) 若无有效枚举，输出 {\"enum\": null}。\n"
+            "5) 若内容是代码示例/JSON样例，输出 {\"enum\": null}。\n\n"
+            "JSON 模板（单枚举）：\n"
+            "{\n"
+            "  \"field\": \"\",\n"
+            "  \"log_field\": \"\",\n"
+            "  \"type\": \"enum\",\n"
+            "  \"mapping\": {}\n"
+            "}\n\n"
+            "文档切片：\n"
+            f"{chunk}"
+        )
 
     def _accumulate_usage(self, response: Any) -> None:
         usage = self._extract_usage(response)
@@ -154,13 +225,25 @@ class LLMExtractor:
         if isinstance(data, dict) and data.get("enum") is None:
             return []
         if isinstance(data, dict):
-            return [data]
+            return [data] if self._is_valid_enum_object(data) else []
         if isinstance(data, list):
-            return [item for item in data if isinstance(item, dict)]
+            return [
+                item
+                for item in data
+                if isinstance(item, dict) and self._is_valid_enum_object(item)
+            ]
         return []
 
+    def _is_valid_enum_object(self, item: dict[str, Any]) -> bool:
+        if "field" not in item or "mapping" not in item:
+            return False
+        mapping = item.get("mapping")
+        if not isinstance(mapping, dict):
+            return False
+        return True
+
     def _extract_with_rules(self, candidate: dict[str, Any]) -> Optional[dict[str, Any]]:
-        chunk = str(candidate.get("chunk", "")).strip()
+        chunk = str(candidate.get("context_chunk") or candidate.get("chunk", "")).strip()
         field = self._normalize_field(str(candidate.get("field_hint") or "unknown_field"))
         candidate_type = str(candidate.get("candidate_type", "")).lower()
         if not chunk:

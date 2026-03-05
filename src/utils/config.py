@@ -4,6 +4,11 @@ import os
 from dataclasses import dataclass
 from typing import Any, Optional, Tuple
 
+from dotenv import load_dotenv
+
+# Load local .env once so CLI runs pick up API config.
+load_dotenv()
+
 
 @dataclass
 class LLMConfig:

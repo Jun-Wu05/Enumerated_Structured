@@ -1,0 +1,20 @@
+{
+  "input": "data/word_long.pdf",
+  "raw_length": 83093,
+  "cleaned_length": 66857,
+  "candidate_count": 11,
+  "extracted_count": 0,
+  "validated_count": 0,
+  "llm_metrics": {
+    "llm_enabled": true,
+    "provider": "siliconflow",
+    "model": "Pro/deepseek-ai/DeepSeek-V3.2",
+    "candidate_total": 11,
+    "llm_success_count": 0,
+    "llm_empty_count": 11,
+    "llm_error_count": 0,
+    "fallback_used_count": 0,
+    "sample_errors": []
+  },
+  "enums": []
+}

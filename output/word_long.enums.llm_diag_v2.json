@@ -1,0 +1,30 @@
+{
+  "input": "data/word_long.pdf",
+  "raw_length": 83093,
+  "cleaned_length": 66831,
+  "candidate_count": 11,
+  "extracted_count": 2,
+  "validated_count": 1,
+  "llm_metrics": {
+    "llm_enabled": true,
+    "provider": "siliconflow",
+    "model": "Pro/deepseek-ai/DeepSeek-V3.2",
+    "candidate_total": 11,
+    "llm_success_count": 1,
+    "llm_empty_count": 10,
+    "llm_error_count": 0,
+    "fallback_used_count": 0,
+    "sample_errors": []
+  },
+  "enums": [
+    {
+      "field": "event_level",
+      "log_field": "event_level",
+      "type": "enum",
+      "mapping": {
+        "critical": "critical",
+        "high": "high"
+      }
+    }
+  ]
+}

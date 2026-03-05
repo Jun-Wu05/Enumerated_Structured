@@ -22,6 +22,7 @@ class MarkdownCleaner:
         lines = self._remove_page_noise(lines)
         lines = self._remove_repeated_headers_or_footers(lines)
         lines = self._merge_wrapped_lines(lines)
+        lines = self._normalize_heading_lines(lines)
         return self._squash_blank_lines("\n".join(lines)).strip()
 
     def _normalize_newlines(self, text: str) -> str:
@@ -102,6 +103,40 @@ class MarkdownCleaner:
 
     def _squash_blank_lines(self, text: str) -> str:
         return re.sub(r"\n{3,}", "\n\n", text)
+
+    def _normalize_heading_lines(self, lines: list[str]) -> list[str]:
+        normalized: list[str] = []
+        for line in lines:
+            stripped = line.strip()
+            if not stripped:
+                normalized.append("")
+                continue
+            if re.match(r"^\[H([1-6])\]\s+", stripped):
+                level = int(re.match(r"^\[H([1-6])\]\s+", stripped).group(1))
+                title = re.sub(r"^\[H[1-6]\]\s+", "", stripped).strip()
+                normalized.append(f"{'#' * level} {title}")
+                continue
+            if re.match(r"^#{1,6}\s+", stripped):
+                normalized.append(stripped)
+                continue
+            level = self._heuristic_heading_level(stripped)
+            if level > 0:
+                normalized.append(f"{'#' * level} {stripped}")
+            else:
+                normalized.append(stripped)
+        return normalized
+
+    def _heuristic_heading_level(self, line: str) -> int:
+        if len(line) > 60:
+            return 0
+        if re.match(r"^\d+(?:\.\d+){0,3}\s+\S+", line):
+            dots = line.split()[0].count(".")
+            return min(3, dots + 1)
+        if re.match(r"^[一二三四五六七八九十]+[、.]\s*\S+", line):
+            return 2
+        if re.match(r"^第[一二三四五六七八九十\d]+[章节部分]\s*\S*", line):
+            return 1
+        return 0
 
 
 def clean_markdown(text: str) -> str:

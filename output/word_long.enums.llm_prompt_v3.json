@@ -1,0 +1,41 @@
+{
+  "input": "data/word_long.pdf",
+  "raw_length": 83093,
+  "cleaned_length": 66857,
+  "candidate_count": 11,
+  "extracted_count": 3,
+  "validated_count": 2,
+  "llm_metrics": {
+    "llm_enabled": true,
+    "provider": "siliconflow",
+    "model": "Pro/deepseek-ai/DeepSeek-V3.2",
+    "candidate_total": 11,
+    "llm_success_count": 3,
+    "llm_empty_count": 8,
+    "llm_error_count": 0,
+    "fallback_used_count": 0,
+    "sample_errors": []
+  },
+  "enums": [
+    {
+      "field": "time_window_days",
+      "log_field": "time_window_days",
+      "type": "enum",
+      "mapping": {
+        "7": "统计 7 天内的数据",
+        "30": "统计 30 天内的数据",
+        "180": "统计 180 天内的数据"
+      }
+    },
+    {
+      "field": "state",
+      "log_field": "state",
+      "type": "enum",
+      "mapping": {
+        "1": "代表有风险",
+        "2": "代表已处理",
+        "3": "代表已忽略 本地提权"
+      }
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+INPUT: data/word_long.pdf
+=== TITLE TREE ===
+- H1 获取公钥 public_key_pem = self.get_public_key() (line=23)
+- H1 加密密码 encrypted_password = self.encrypt_password(password.encode('utf-8'), public_key_pem) (line=25)
+- H1 发送带有加密后密码的登录请求 resp = self.request("AccountNoAuthService.Login", {"username": username, "type": "", "credentials": {"password": encrypted_password}}, True) if resp.status_code == 200 and "error" not in resp.json(): (line=26)
+- H1 03  / 111 (line=36)
+- H1 09  / 111 (line=243)
+- H1 92  / 111 (line=538)
+- H1 94  / 111 (line=544)
+- H1 97  / 111 (line=552)
+- H1 103  / 111 (line=583)
+- H1 104  / 111 (line=600)
+- H1 105  / 111 (line=618)
+- H1 106  / 111 (line=632)
+- H1 107  / 111 (line=668)
+- H1 108  / 111 (line=692)
+- H1 109  / 111 (line=718)
+- H1 111  / 111 (line=750)
+
+=== ENUM CANDIDATES ===
+[1] type=kv_enum line=56-80 field=level title=H1:03  / 111
+    chunk: 1：代表低危事件 | 2：代表中危事件 | 3：代表高危事件 | 4：代表严重事件
+[2] type=kv_enum line=56-80 field=state title=H1:03  / 111
+    chunk: 1：代表有风险 | 2：代表已处理 | 3：代表已忽略
+[3] type=kv_enum line=82-93 field=range_days title=H1:03  / 111
+    chunk: 7：统计 7 天内的数据 | 30：统计 30 天内的数据 | 180：统计 180 天内的数据
+[4] type=kv_enum line=99-118 field=level title=H1:03  / 111
+    chunk: critical：严重事件数量 | high：高危事件数量 | medium：中危事件数量 | low：低危事件数量 | risky：有风险 | ignore：已忽略 | processed：已处理 WebShell
+[5] type=kv_enum line=206-233 field=state title=H1:03  / 111
+    chunk: 1：代表有风险 | 2：代表已处理 | 3：代表已忽略 暴力破解
+[6] type=kv_enum line=245-265 field=state title=H1:09  / 111
+    chunk: 1：代表有风险 | 2：代表已处理 | 3：代表已忽略 蜜罐诱捕
+[7] type=kv_enum line=285-296 field=state title=H1:09  / 111
+    chunk: 1：代表有风险 | 2：代表已处理 | 3：代表已忽略 本地提权
+[8] type=kv_enum line=325-327 field=state title=H1:09  / 111
+    chunk: 2：代表已处理 | 3：代表已忽略 异常登录
+[9] type=kv_enum line=329-356 field=state title=H1:09  / 111
+    chunk: 1：代表有风险 | 2：代表已处理 | 3：代表已忽略 文档下载 文档下载 牧云提供多种文档形式，请按需使用:
+[10] type=kv_enum line=417-418 field=None title=H1:09  / 111
+    chunk: 11：19:26", "user_name": "root", "event_description": "", "event_solution": ""} <14>1 2020-08-24T07:50:43Z cfd86f3a54ec cloudwalker 19 cloudwalker-abnormal-login  host_name="Bomb" hos t_ip="10.2.6.83" host_id="190" event_name="WebShell" event_level="critical" e
+[11] type=table_enum line=665-667 field=None title=H1:106  / 111
+    chunk: 假设执行这条命令的 Bash 的  stdin  和  stdout  都是  pts/0 。外层  | （倒数第二个字符）产生的匿名管道为 | pipe1 ，内层  | （cURL 和 sh 之间的管道）产生的匿名管道为  pipe2 。 | 可标注出外层  |  前后命令的 fd 如下图所示。

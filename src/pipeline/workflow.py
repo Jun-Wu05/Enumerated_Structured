@@ -31,6 +31,7 @@ from src.pipeline.enum_validator import EnumValidator
 from src.pipeline.llm_extractor import LLMExtractor
 from src.pipeline.loader import Loader
 from src.pipeline.markdown_cleaner import MarkdownCleaner
+from src.pipeline.title_indexer import TitleIndexer
 
 
 class LoadedEvent(Event):
@@ -57,6 +58,7 @@ class ExtractedEvent(Event):
     cleaned_text: str
     candidates: list[dict[str, Any]]
     extracted: list[dict[str, Any]]
+    llm_metrics: dict[str, Any]
 
 
 class EnumExtractionWorkflow(Workflow):
@@ -88,6 +90,7 @@ class EnumExtractionWorkflow(Workflow):
     @step
     async def detect_step(self, ctx: Context, ev: CleanedEvent) -> DetectedEvent:
         candidates = self.detector.detect(ev.cleaned_text)
+        self._write_structure_log(ev.input_path, ev.cleaned_text, candidates)
         return DetectedEvent(
             input_path=ev.input_path,
             raw_text=ev.raw_text,
@@ -98,12 +101,14 @@ class EnumExtractionWorkflow(Workflow):
     @step
     async def extract_step(self, ctx: Context, ev: DetectedEvent) -> ExtractedEvent:
         extracted = self.extractor.extract_many(ev.candidates)
+        llm_metrics = self.extractor.get_metrics()
         return ExtractedEvent(
             input_path=ev.input_path,
             raw_text=ev.raw_text,
             cleaned_text=ev.cleaned_text,
             candidates=ev.candidates,
             extracted=extracted,
+            llm_metrics=llm_metrics,
         )
 
     @step
@@ -116,9 +121,36 @@ class EnumExtractionWorkflow(Workflow):
             "candidate_count": len(ev.candidates),
             "extracted_count": len(ev.extracted),
             "validated_count": len(validated),
+            "llm_metrics": ev.llm_metrics,
             "enums": validated,
         }
         return StopEvent(result=payload)
+
+    def _write_structure_log(
+        self, input_path: str, cleaned_text: str, candidates: list[dict[str, Any]]
+    ) -> None:
+        output_path = Path("output") / "test_structure.log"
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        indexer = TitleIndexer()
+        nodes = indexer.build(cleaned_text)
+        lines = []
+        lines.append(f"INPUT: {input_path}")
+        lines.append("=== TITLE TREE ===")
+        lines.append(indexer.format_tree(nodes) or "(no headings)")
+        lines.append("")
+        lines.append("=== ENUM CANDIDATES ===")
+        for i, cand in enumerate(candidates, start=1):
+            title_path = cand.get("title_path") or []
+            lines.append(
+                f"[{i}] type={cand.get('candidate_type')} "
+                f"line={cand.get('start_line')}-{cand.get('end_line')} "
+                f"field={cand.get('field_hint')} "
+                f"title={' > '.join(title_path) if title_path else '(none)'}"
+            )
+            preview = str(cand.get("chunk", "")).replace("\n", " | ")
+            lines.append(f"    chunk: {preview[:260]}")
+        output_path.write_text("\n".join(lines), encoding="utf-8")
 
 
 def run_enum_workflow(input_path: str | Path) -> dict[str, Any]:

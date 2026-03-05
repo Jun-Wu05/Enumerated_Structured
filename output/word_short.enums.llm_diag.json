@@ -1,0 +1,20 @@
+{
+  "input": "data/word_short.pdf",
+  "raw_length": 11898,
+  "cleaned_length": 10985,
+  "candidate_count": 1,
+  "extracted_count": 0,
+  "validated_count": 0,
+  "llm_metrics": {
+    "llm_enabled": false,
+    "provider": "default",
+    "model": "deepseek-chat",
+    "candidate_total": 1,
+    "llm_success_count": 0,
+    "llm_empty_count": 0,
+    "llm_error_count": 0,
+    "fallback_used_count": 0,
+    "sample_errors": []
+  },
+  "enums": []
+}
