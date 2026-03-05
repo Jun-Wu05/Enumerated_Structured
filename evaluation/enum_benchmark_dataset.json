@@ -1,0 +1,310 @@
+[
+{
+"id":"enum_001",
+"type":"numeric_enum",
+"document":"威胁类型：0：恶意内容 1：恶意行为 2：可疑行为 3：漏洞利用 4：灰色软件",
+"expected_output":{"field":"threat_type","mapping":{"0":"恶意内容","1":"恶意行为","2":"可疑行为","3":"漏洞利用","4":"灰色软件"}}
+},
+{
+"id":"enum_002",
+"type":"boolean_enum",
+"document":"result：事件结果，取值 SUCCESS 或 FAILED",
+"expected_output":{"field":"result","mapping":{"SUCCESS":"成功","FAILED":"失败"}}
+},
+{
+"id":"enum_003",
+"type":"boolean_enum",
+"document":"isRiskEvent：是否有安全风险，取值 true 或 false",
+"expected_output":{"field":"isRiskEvent","mapping":{"true":"有风险","false":"无风险"}}
+},
+{
+"id":"enum_004",
+"type":"numeric_enum",
+"document":"nNetAction：动作 1：允许 2：拒绝",
+"expected_output":{"field":"nNetAction","mapping":{"1":"允许","2":"拒绝"}}
+},
+{
+"id":"enum_005",
+"type":"numeric_enum",
+"document":"nType：记录类型 0：正常 1：风险 2：违规 3：攻击",
+"expected_output":{"field":"nType","mapping":{"0":"正常","1":"风险","2":"违规","3":"攻击"}}
+},
+{
+"id":"enum_006",
+"type":"string_enum",
+"document":"日志等级：INFO WARN ERROR",
+"expected_output":{"field":"level","mapping":{"INFO":"信息","WARN":"警告","ERROR":"错误"}}
+},
+{
+"id":"enum_007",
+"type":"string_enum",
+"document":"HTTP方法包括 GET POST PUT DELETE",
+"expected_output":{"field":"method","mapping":{"GET":"获取","POST":"提交","PUT":"更新","DELETE":"删除"}}
+},
+{
+"id":"enum_008",
+"type":"string_enum",
+"document":"log_type字段取值 waf ips netflow arp dns mysql",
+"expected_output":{"field":"log_type","mapping":{"waf":"WAF日志","ips":"IPS日志","netflow":"访问日志","arp":"ARP审计","dns":"DNS协议","mysql":"MYSQL登录"}}
+},
+{
+"id":"enum_009",
+"type":"string_enum",
+"document":"操作系统类型：linux windows",
+"expected_output":{"field":"os_type","mapping":{"linux":"Linux系统","windows":"Windows系统"}}
+},
+{
+"id":"enum_010",
+"type":"numeric_enum",
+"document":"资产等级：1：普通资产 2：重要资产 3：核心资产",
+"expected_output":{"field":"asset_level","mapping":{"1":"普通资产","2":"重要资产","3":"核心资产"}}
+},
+
+{
+"id":"enum_011",
+"type":"string_enum",
+"document":"session_state：OPEN CLOSED TIMEOUT",
+"expected_output":{"field":"session_state","mapping":{"OPEN":"打开","CLOSED":"关闭","TIMEOUT":"超时"}}
+},
+{
+"id":"enum_012",
+"type":"string_enum",
+"document":"事件结果：success failed",
+"expected_output":{"field":"result","mapping":{"success":"成功","failed":"失败"}}
+},
+{
+"id":"enum_013",
+"type":"string_enum",
+"document":"协议类型：http dns ftp ssh",
+"expected_output":{"field":"protocol","mapping":{"http":"HTTP协议","dns":"DNS协议","ftp":"FTP协议","ssh":"SSH协议"}}
+},
+{
+"id":"enum_014",
+"type":"numeric_enum",
+"document":"severity等级 0：最低 1：低 2：中 3：高",
+"expected_output":{"field":"severity","mapping":{"0":"最低","1":"低","2":"中","3":"高"}}
+},
+{
+"id":"enum_015",
+"type":"string_enum",
+"document":"数据库类型 mysql oracle sqlserver db2",
+"expected_output":{"field":"db_type","mapping":{"mysql":"MySQL","oracle":"Oracle","sqlserver":"SQLServer","db2":"DB2"}}
+},
+
+{
+"id":"enum_016",
+"type":"negative",
+"document":"src_ip string 源IP地址",
+"expected_output":null
+},
+{
+"id":"enum_017",
+"type":"negative",
+"document":"dst_ip string 目的IP地址",
+"expected_output":null
+},
+{
+"id":"enum_018",
+"type":"negative",
+"document":"字段名 类型 说明 host_ip string 主机IP",
+"expected_output":null
+},
+{
+"id":"enum_019",
+"type":"negative",
+"document":"timestamp string 事件时间",
+"expected_output":null
+},
+{
+"id":"enum_020",
+"type":"negative",
+"document":"user string 用户名",
+"expected_output":null
+},
+
+{
+"id":"enum_021",
+"type":"string_enum",
+"document":"网络协议：tcp udp icmp",
+"expected_output":{"field":"protocol","mapping":{"tcp":"TCP协议","udp":"UDP协议","icmp":"ICMP协议"}}
+},
+{
+"id":"enum_022",
+"type":"string_enum",
+"document":"日志类型 login logout update delete",
+"expected_output":{"field":"log_type","mapping":{"login":"登录","logout":"退出","update":"更新","delete":"删除"}}
+},
+{
+"id":"enum_023",
+"type":"numeric_enum",
+"document":"风险等级 1：低 2：中 3：高 4：严重",
+"expected_output":{"field":"risk_level","mapping":{"1":"低","2":"中","3":"高","4":"严重"}}
+},
+{
+"id":"enum_024",
+"type":"string_enum",
+"document":"连接状态 success failed timeout",
+"expected_output":{"field":"connection_state","mapping":{"success":"成功","failed":"失败","timeout":"超时"}}
+},
+{
+"id":"enum_025",
+"type":"string_enum",
+"document":"协议动作 allow deny drop",
+"expected_output":{"field":"action","mapping":{"allow":"允许","deny":"拒绝","drop":"丢弃"}}
+},
+
+{
+"id":"enum_026",
+"type":"negative",
+"document":"record_time integer 记录时间戳",
+"expected_output":null
+},
+{
+"id":"enum_027",
+"type":"negative",
+"document":"attack_count integer 攻击数量",
+"expected_output":null
+},
+{
+"id":"enum_028",
+"type":"negative",
+"document":"request_flow integer 请求流量",
+"expected_output":null
+},
+{
+"id":"enum_029",
+"type":"negative",
+"document":"response_flow integer 响应流量",
+"expected_output":null
+},
+{
+"id":"enum_030",
+"type":"negative",
+"document":"dst_port integer 目的端口",
+"expected_output":null
+},
+
+{
+"id":"enum_031",
+"type":"string_enum",
+"document":"认证方式 password token certificate",
+"expected_output":{"field":"auth_method","mapping":{"password":"密码","token":"令牌","certificate":"证书"}}
+},
+{
+"id":"enum_032",
+"type":"string_enum",
+"document":"设备类型 proxy sdp hybrid",
+"expected_output":{"field":"device_type","mapping":{"proxy":"代理","sdp":"SDP设备","hybrid":"混合设备"}}
+},
+{
+"id":"enum_033",
+"type":"string_enum",
+"document":"系统状态 running stopped restarting",
+"expected_output":{"field":"system_state","mapping":{"running":"运行中","stopped":"停止","restarting":"重启中"}}
+},
+{
+"id":"enum_034",
+"type":"numeric_enum",
+"document":"优先级 1：低 2：中 3：高",
+"expected_output":{"field":"priority","mapping":{"1":"低","2":"中","3":"高"}}
+},
+{
+"id":"enum_035",
+"type":"string_enum",
+"document":"数据格式 json xml csv",
+"expected_output":{"field":"format","mapping":{"json":"JSON","xml":"XML","csv":"CSV"}}
+},
+
+{
+"id":"enum_036",
+"type":"negative",
+"document":"agent_version string Agent版本",
+"expected_output":null
+},
+{
+"id":"enum_037",
+"type":"negative",
+"document":"kernel_version string 内核版本",
+"expected_output":null
+},
+{
+"id":"enum_038",
+"type":"negative",
+"document":"agent_status string Agent状态",
+"expected_output":null
+},
+{
+"id":"enum_039",
+"type":"negative",
+"document":"group_id integer 业务组ID",
+"expected_output":null
+},
+{
+"id":"enum_040",
+"type":"negative",
+"document":"host_name string 主机名",
+"expected_output":null
+},
+
+{
+"id":"enum_041",
+"type":"string_enum",
+"document":"文件类型 exe dll script",
+"expected_output":{"field":"file_type","mapping":{"exe":"可执行文件","dll":"动态库","script":"脚本"}}
+},
+{
+"id":"enum_042",
+"type":"string_enum",
+"document":"扫描状态 pending running finished",
+"expected_output":{"field":"scan_status","mapping":{"pending":"等待","running":"扫描中","finished":"完成"}}
+},
+{
+"id":"enum_043",
+"type":"numeric_enum",
+"document":"事件级别 1：信息 2：警告 3：严重",
+"expected_output":{"field":"event_level","mapping":{"1":"信息","2":"警告","3":"严重"}}
+},
+{
+"id":"enum_044",
+"type":"string_enum",
+"document":"连接模式 active passive",
+"expected_output":{"field":"mode","mapping":{"active":"主动","passive":"被动"}}
+},
+{
+"id":"enum_045",
+"type":"string_enum",
+"document":"访问权限 read write execute",
+"expected_output":{"field":"permission","mapping":{"read":"读取","write":"写入","execute":"执行"}}
+},
+
+{
+"id":"enum_046",
+"type":"negative",
+"document":"responseTime int 响应时间",
+"expected_output":null
+},
+{
+"id":"enum_047",
+"type":"negative",
+"document":"recvBytes int 接收字节数",
+"expected_output":null
+},
+{
+"id":"enum_048",
+"type":"negative",
+"document":"sendBytes int 发送字节数",
+"expected_output":null
+},
+{
+"id":"enum_049",
+"type":"negative",
+"document":"deviceId string 设备ID",
+"expected_output":null
+},
+{
+"id":"enum_050",
+"type":"negative",
+"document":"displayName string 显示名称",
+"expected_output":null
+}
+]

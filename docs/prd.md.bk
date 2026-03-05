@@ -1,0 +1,78 @@
+## 📝 结构化提取 Agent 工作流 PRD (v1.0)
+
+### 1. 项目概述
+
+构建一个自动化的数据管道，支持 **.docx** 和 **.pdf** 文件输入。通过**全云端 API 流程**（硅基流动）实现语义索引与结构化提取，并利用 **MD5 指纹** 实现持久化存储以节省 Token。
+
+### 2. 核心技术栈 (更新)
+
+* **框架**: LlamaIndex (Workflows / IngestionPipeline)
+* **API 平台**: **硅基流动 (SiliconFlow)**
+* **Embedding**: `BAAI/bge-m3` (通过 API 调用)
+* **推理 LLM**: `DeepSeek-V3` 或 `DeepSeek-R1`
+
+
+* **解析**:
+* Word: `DocxReader`
+* PDF: `PyMuPDFReader` (或 `LlamaParse` 以获得更好的表格/列表效果)
+
+
+* **存储**: ChromaDB (仅存储向量 ID 与 Metadata) + SQLite (缓存)
+
+文件夹结构：
+Logagent/
+├── data/                  # 存放上传的 docx/pdf 原文件
+├── storage/               # 向量数据库 (ChromaDB) 持久化路径
+├── database/              # SQLite 数据库 (存放 MD5 指纹与缓存)
+├── src/
+│   ├── __init__.py
+│   ├── utils/
+│   │   ├── hasher.py      # 阶段 1：MD5 计算逻辑
+│   │   └── loader.py      # 阶段 1：Docx/PDF 解析器
+│   ├── core/
+│   │   ├── engine.py      # 阶段 2/3：SiliconFlow API 逻辑
+│   │   └── workflow.py    # 阶段 4：LlamaIndex Workflow 定义
+│   └── schema.py          # Pydantic 结构定义
+├── .env                   # 存放 SILICONFLOW_API_KEY
+├── .gitignore             # 忽略 venv, storage, .env
+├── main.py                # 入口函数
+└── requirements.txt       # 依赖清单
+
+---
+
+### 3. 分阶段执行路线图
+
+#### 阶段 1：多格式加载与文件指纹
+
+1. **统一路由加载器**：根据文件后缀名自动选择 `DocxReader` 或 `PyMuPDFReader`。
+2. **MD5 校验**：在解析前计算文件哈希，若命中数据库则直接返回 JSON 结果。
+3. **Markdown 标准化**：确保不同格式转换后的输出均为结构化的 Markdown，重点保留枚举列表的缩进。
+
+#### 阶段 2：云端索引与持久化
+
+1. **SiliconFlow 集成**：配置 `Settings.embed_model` 连接硅基流动 API。
+2. **轻量化存储**：由于 Embedding 在云端，本地 ChromaDB 仅需维护索引关系，极大降低 8GB 内存压力。
+
+#### 阶段 3：语义筛选与结构化提取
+
+1. **Hybrid Search (可选)**：利用 BGE-M3 的多向量特性进行精准定位。
+2. **结构化 Prompt**：定义 Pydantic Schema，通过硅基流动的 DeepSeek 模型输出 JSON。
+
+---
+
+### 4. 关键改进说明
+
+* **关于 PDF 支持**：PDF 的结构比 Word 复杂（尤其是跨行、列表符号识别）。建议优先使用 `PyMuPDF`，如果遇到枚举项被断行严重的情况，建议升级到 `LlamaParse`。
+* **关于内存优化**：移除本地 BGE-M3 模型加载后，你的 **8GB RAM** 将完全够用，系统运行会非常流畅。
+
+---
+
+### 💡 给我的执行指令 (建议)
+
+> 你好 Claude，这是我的 PRD v1.0 以及预设的项目文件夹结构（见上文）。请严格按照这个结构，先为我实现 阶段 1 中的 src/utils/hasher.py 和 src/utils/loader.py。注意，我的电脑只有 8GB RAM，请尽量保持代码轻量。要求：
+> 1. 输入文件路径，先计算 MD5。
+> 2. 根据后缀调用不同的 Reader（LlamaIndex 风格）。
+> 3. 统一输出为清洗后的 Markdown 字符串，并保留列表结构。
+> 4. 首先生成最小mvp版本，确保能够正常运行。
+> 
+
